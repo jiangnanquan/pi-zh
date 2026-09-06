@@ -1,0 +1,15 @@
+{
+  "exact_literals": {
+    "Use /login to log into a provider via OAuth or API key. See:": "请使用 /login 配置模型服务商的 OAuth 授权或 API 密钥。参考文档：",
+    "No models available. ": "当前暂无可用模型。",
+    "No model selected.": "未选择任何模型。",
+    "Then use /model to select a model.": "然后使用 /model 命令选择模型。",
+    "Press Ctrl+P to cycle models": "按 Ctrl+P 循环切换模型",
+    "Press any key to continue...": "按任意键继续...",
+    "to expand": "展开",
+    "Trust": "信任",
+    "Do not trust": "不信任",
+    "Trust (this session only)": "仅本次会话信任",
+    "Do not trust (this session only)": "仅本次会话不信任"
+  }
+}

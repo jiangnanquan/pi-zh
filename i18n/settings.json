@@ -1,0 +1,66 @@
+{
+  "tui-mode": {
+    "label": "TUI 布局模式",
+    "description": "界面布局；全屏模式（fullscreen）处于实验阶段"
+  },
+  "fullscreen-exit-output": {
+    "label": "全屏退出输出",
+    "description": "退出全屏时打印完整历史转录或仅显示恢复会话提示"
+  },
+  "fullscreen-scrollbar": {
+    "label": "全屏滚动条",
+    "description": "全屏模式下的滚动条显示方式；常规模式下无效"
+  },
+  "fullscreen-copy-on-select": {
+    "label": "全屏划选自动复制",
+    "description": "全屏模式下划选文字自动复制到剪贴板；禁用后使用 Ctrl+X 复制"
+  },
+  "theme": {
+    "label": "主题配色",
+    "description": "界面色彩搭配与高亮主题"
+  },
+  "show-images": {
+    "label": "显示图片",
+    "description": "在支持的终端内直接内联渲染显示图片"
+  },
+  "image-width-cells": {
+    "label": "图片显示宽度",
+    "description": "终端内联图片的首选列宽（字符单元格数）"
+  },
+  "auto-resize-images": {
+    "label": "自动缩放图片",
+    "description": "将超大尺寸图片自动等比压缩至最大 2000x2000 以确保模型兼容"
+  },
+  "block-images": {
+    "label": "阻止发送图片",
+    "description": "禁止向大模型提供商发送任何图片输入"
+  },
+  "skill-commands": {
+    "label": "技能斜杠命令",
+    "description": "将已安装的技能直接注册为 /skill:name 命令"
+  },
+  "show-hardware-cursor": {
+    "label": "显示硬件光标",
+    "description": "显示终端原生光标并为中文输入法（IME）保持精确定位"
+  },
+  "editor-padding": {
+    "label": "输入框水平边距",
+    "description": "底栏输入编辑器的左右内边距 (0-3)"
+  },
+  "output-padding": {
+    "label": "消息输出边距",
+    "description": "用户提问、助手回复与思考过程的左右水平边距"
+  },
+  "autocomplete-max-visible": {
+    "label": "自动补全最多项",
+    "description": "斜杠命令与自动补全浮窗中单屏最大可见项数 (3-20)"
+  },
+  "clear-on-shrink": {
+    "label": "内容减少时清屏",
+    "description": "当终端内容减少时清除多余空行（在部分终端可能引起闪烁）"
+  },
+  "terminal-progress": {
+    "label": "标签栏进度显示",
+    "description": "在支持的终端标签栏中显示 OSC 9;4 实时任务进度条"
+  }
+}

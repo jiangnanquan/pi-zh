@@ -1,0 +1,74 @@
+{
+  "settings": {
+    "description": "打开设置菜单"
+  },
+  "model": {
+    "description": "选择模型（打开选择器界面）",
+    "argumentHint": "<服务商/模型>"
+  },
+  "tree": {
+    "description": "浏览会话分支树（切换分支）"
+  },
+  "thinking": {
+    "description": "设置思考级别",
+    "argumentHint": "<级别>"
+  },
+  "scoped-models": {
+    "description": "启用/禁用用于 Ctrl+P 切换的模型"
+  },
+  "export": {
+    "description": "导出当前会话（默认 HTML，或指定 .html/.jsonl 路径）"
+  },
+  "import": {
+    "description": "从 JSONL 文件导入并恢复会话"
+  },
+  "share": {
+    "description": "将当前会话分享为 GitHub 秘密 Gist"
+  },
+  "copy": {
+    "description": "复制最后一条 Agent 回复到剪贴板"
+  },
+  "name": {
+    "description": "设置会话显示名称"
+  },
+  "session": {
+    "description": "显示会话信息与消耗统计"
+  },
+  "changelog": {
+    "description": "查看版本更新日志"
+  },
+  "hotkeys": {
+    "description": "显示所有快捷键帮助"
+  },
+  "fork": {
+    "description": "从历史消息派生新会话"
+  },
+  "clone": {
+    "description": "在当前位置完整复制当前会话"
+  },
+  "trust": {
+    "description": "保存对当前项目的信任决策（用于后续会话）"
+  },
+  "login": {
+    "description": "配置模型服务商认证凭据",
+    "argumentHint": "<服务商>"
+  },
+  "logout": {
+    "description": "移除模型服务商认证凭据"
+  },
+  "new": {
+    "description": "开启新会话"
+  },
+  "compact": {
+    "description": "手动压缩会话上下文"
+  },
+  "resume": {
+    "description": "选择并恢复历史会话"
+  },
+  "reload": {
+    "description": "重新加载快捷键、扩展、技能、提示词模版与上下文配置"
+  },
+  "quit": {
+    "description": "退出 Pi"
+  }
+}
