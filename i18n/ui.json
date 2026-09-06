@@ -30,7 +30,37 @@
     "for external editor": "打开外部编辑器",
     "to queue follow-up": "排队跟进消息",
     "to edit all queued messages": "编辑排队中的消息",
-    "to paste image (with text fallback)": "粘贴图片（支持文本降级）"
+    "to paste image (with text fallback)": "粘贴图片（支持文本降级）",
+
+    "Only showing models from configured providers. Use /login to add providers.": "仅显示已配置提供商的模型。使用 /login 添加提供商。",
+    "  No matching models": "  未找到匹配的模型",
+    "No matching models": "未找到匹配的模型",
+    "Model catalogs refreshed.": "模型目录已刷新。",
+    "Model refresh timed out; showing cached models.": "模型刷新超时；正在显示缓存的模型。",
+    "Refreshing model catalogs…": "正在刷新模型目录…",
+    "Refreshing model catalogs\\u2026": "正在刷新模型目录\\u2026",
+    "  Model Name: ": "  模型名称: ",
+
+    "`  ${keyDisplayText(\"tui.select.confirm\")} to select · ${keyDisplayText(\"app.models.save\")} to set as default · ${keyDisplayText(\"tui.select.cancel\")} to cancel`": "`  ${keyDisplayText(\"tui.select.confirm\")} 确认选择 · ${keyDisplayText(\"app.models.save\")} 设为默认 · ${keyDisplayText(\"tui.select.cancel\")} 取消`",
+    "`  ${keyDisplayText(\"tui.select.confirm\")} to select \\xB7 ${keyDisplayText(\"app.models.save\")} to set as default \\xB7 ${keyDisplayText(\"tui.select.cancel\")} to cancel`": "`  ${keyDisplayText(\"tui.select.confirm\")} 确认选择 · ${keyDisplayText(\"app.models.save\")} 设为默认 · ${keyDisplayText(\"tui.select.cancel\")} 取消`",
+
+    "  Enter to select · Esc to go back": "  Enter 确认选择 · Esc 返回",
+    "  Enter to select \\xB7 Esc to go back": "  Enter 确认选择 · Esc 返回",
+    "  Enter to select \\u00b7 Esc to go back": "  Enter 确认选择 · Esc 返回",
+    "  Type to filter · Enter to select · Esc to go back": "  输入文字过滤 · Enter 确认选择 · Esc 返回",
+    "  Type to filter \\xB7 Enter to select \\xB7 Esc to go back": "  输入文字过滤 · Enter 确认选择 · Esc 返回",
+    "  Type to filter \\u00b7 Enter to select \\u00b7 Esc to go back": "  输入文字过滤 · Enter 确认选择 · Esc 返回",
+
+    "Select provider to configure:": "选择要配置的服务商:",
+    "Select provider to logout:": "选择要退出的服务商:",
+    "Select authentication method:": "选择认证方式:",
+    "No matching providers": "未找到匹配的服务商",
+    "No providers available": "当前无可用服务商",
+    "No providers logged in. Use /login first.": "尚未登录任何服务商。请先使用 /login。",
+    "Sign in with an account": "通过账号登录",
+    "Sign in with an API key": "通过 API 密钥登录",
+    "Model Configuration": "模型配置",
+    "Session-only. ${keyDisplayText(\"app.models.save\")} to save to settings.": "仅本次会话生效。按 ${keyDisplayText(\"app.models.save\")} 保存至设置。"
   },
   "startup_hints": {
     "interrupt": "中断",

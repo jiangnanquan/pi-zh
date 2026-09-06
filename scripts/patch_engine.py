@@ -212,9 +212,10 @@ def patch_cli_and_ui(content: str, cli_dict: dict, ui_dict: dict) -> tuple[str, 
     for en, zh in all_literals.items():
         if " " in en or "(" in en:
             # 包含空格或括号的描述文本，不可能碰撞 JS 标识符，可安全替换
-            if en in content:
+            count = content.count(en)
+            if count > 0:
                 content = content.replace(en, zh)
-                replaced_count += 1
+                replaced_count += count
         else:
             # 单独单词（如 'Trust'）必须严格处于引号包裹内，防止误伤变量名
             pattern = re.compile(r'([\"\'`])' + re.escape(en) + r'\1')
@@ -308,6 +309,10 @@ def apply_patch(pkg_dir: Path, repo_root: Path, force=False, dry_run=False):
         pkg_dir / "dist" / "core" / "keybindings.js",
         pkg_dir / "dist" / "cli" / "args.js",
         pkg_dir / "dist" / "modes" / "interactive" / "interactive-mode.js",
+        pkg_dir / "dist" / "modes" / "interactive" / "components" / "model-selector.js",
+        pkg_dir / "dist" / "modes" / "interactive" / "components" / "settings-submenu.js",
+        pkg_dir / "dist" / "modes" / "interactive" / "components" / "scoped-models-selector.js",
+        pkg_dir / "dist" / "modes" / "interactive" / "components" / "oauth-selector.js",
     ]
     for mf in modular_candidates:
         if mf.exists():

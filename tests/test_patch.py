@@ -95,6 +95,29 @@ addLoadedSection("Context", contextCompactList, contextList);
         self.assertIn('"更多"', patched)
         self.assertIn('addLoadedSection("上下文"', patched)
 
+    def test_model_selector_contract(self):
+        """验证模型选择器与交互菜单提示汉化"""
+        ui = self.i18n["ui"]
+        cli = self.i18n["cli"]
+
+        # 模拟 bundle chunk 与 modular 组件代码
+        sample_chunk = """
+hintText="Only showing models from configured providers. Use /login to add providers.";
+this.listContainer.addChild(new Text(theme.fg("muted","  No matching models"),0,0));
+this.refreshStatusMessage="Model catalogs refreshed.";
+this.addChild(new Text(theme.fg("dim",`  ${keyDisplayText("tui.select.confirm")} to select \\xB7 ${keyDisplayText("app.models.save")} to set as default \\xB7 ${keyDisplayText("tui.select.cancel")} to cancel`),0,0));
+const hint="  Type to filter \\xB7 Enter to select \\xB7 Esc to go back";
+"""
+        patched, count = patch_engine.patch_cli_and_ui(sample_chunk, cli, ui)
+        self.assertGreaterEqual(count, 5)
+        self.assertIn("仅显示已配置提供商的模型。使用 /login 添加提供商。", patched)
+        self.assertIn("未找到匹配的模型", patched)
+        self.assertIn("模型目录已刷新。", patched)
+        self.assertIn("确认选择 ·", patched)
+        self.assertIn("设为默认 ·", patched)
+        self.assertIn("取消`", patched)
+        self.assertIn("输入文字过滤 · Enter 确认选择 · Esc 返回", patched)
+
 
 if __name__ == "__main__":
     unittest.main()
