@@ -226,6 +226,54 @@ def patch_cli_and_ui(content: str, cli_dict: dict, ui_dict: dict) -> tuple[str, 
     return content, replaced_count
 
 
+def patch_startup_banner(content: str, ui_dict: dict) -> tuple[str, int]:
+    """
+    汉化启动横幅提示、快速指令行与已加载资源区块头 (如 [Context] -> [上下文])
+    """
+    replaced_count = 0
+    hints = ui_dict.get("startup_hints", {})
+
+    # 1. 紧凑快捷栏条目 (compactInstructions)
+    if "interrupt" in hints:
+        content, n = re.subn(r'hint\(\s*["\']app\.interrupt["\']\s*,\s*["\']interrupt["\']\s*\)', f'hint("app.interrupt", "{hints["interrupt"]}")', content)
+        replaced_count += n
+    if "commands" in hints:
+        content, n = re.subn(r'rawKeyHint\(\s*["\']/["\']\s*,\s*["\']commands["\']\s*\)', f'rawKeyHint("/", "{hints["commands"]}")', content)
+        replaced_count += n
+    if "bash" in hints:
+        content, n = re.subn(r'rawKeyHint\(\s*["\']!["\']\s*,\s*["\']bash["\']\s*\)', f'rawKeyHint("!", "{hints["bash"]}")', content)
+        replaced_count += n
+    if "more" in hints:
+        content, n = re.subn(r'hint\(\s*["\']app\.tools\.expand["\']\s*,\s*["\']more["\']\s*\)', f'hint("app.tools.expand", "{hints["more"]}")', content)
+        replaced_count += n
+
+    # 2. 展开帮助条目 (expandedInstructions)
+    if "for commands" in hints:
+        content, n = re.subn(r'rawKeyHint\(\s*["\']/["\']\s*,\s*["\']for commands["\']\s*\)', f'rawKeyHint("/", "{hints["for commands"]}")', content)
+        replaced_count += n
+    if "to run bash" in hints:
+        content, n = re.subn(r'rawKeyHint\(\s*["\']!["\']\s*,\s*["\']to run bash["\']\s*\)', f'rawKeyHint("!", "{hints["to run bash"]}")', content)
+        replaced_count += n
+    if "to run bash (no context)" in hints:
+        content, n = re.subn(r'rawKeyHint\(\s*["\']!!["\']\s*,\s*["\']to run bash \(no context\)["\']\s*\)', f'rawKeyHint("!!", "{hints["to run bash (no context)"]}")', content)
+        replaced_count += n
+    if "drop files" in hints and "to attach" in hints:
+        content, n = re.subn(r'rawKeyHint\(\s*["\']drop files["\']\s*,\s*["\']to attach["\']\s*\)', f'rawKeyHint("{hints["drop files"]}", "{hints["to attach"]}")', content)
+        replaced_count += n
+    if "to expand tools" in hints:
+        content, n = re.subn(r'hint\(\s*["\']app\.tools\.expand["\']\s*,\s*["\']to expand tools["\']\s*\)', f'hint("app.tools.expand", "{hints["to expand tools"]}")', content)
+        replaced_count += n
+
+    # 3. 资源区块标题 [Context] -> [上下文]
+    sections = ui_dict.get("loaded_sections", {})
+    for sec_en, sec_zh in sections.items():
+        pat = re.compile(r'addLoadedSection\(\s*["\']' + re.escape(sec_en) + r'["\']\s*,')
+        content, n = pat.subn(f'addLoadedSection("{sec_zh}",', content)
+        replaced_count += n
+
+    return content, replaced_count
+
+
 def apply_patch(pkg_dir: Path, repo_root: Path, force=False, dry_run=False):
     version = get_installed_version(pkg_dir)
     log(f"目标包路径: {pkg_dir}")
@@ -259,6 +307,7 @@ def apply_patch(pkg_dir: Path, repo_root: Path, force=False, dry_run=False):
         pkg_dir / "dist" / "core" / "slash-commands.js",
         pkg_dir / "dist" / "core" / "keybindings.js",
         pkg_dir / "dist" / "cli" / "args.js",
+        pkg_dir / "dist" / "modes" / "interactive" / "interactive-mode.js",
     ]
     for mf in modular_candidates:
         if mf.exists():
@@ -296,6 +345,10 @@ def apply_patch(pkg_dir: Path, repo_root: Path, force=False, dry_run=False):
         # 应用 CLI & UI 汉化
         content, n4 = patch_cli_and_ui(content, i18n["cli"], i18n["ui"])
         file_replaced += n4
+
+        # 应用启动横幅与资源区块汉化
+        content, n5 = patch_startup_banner(content, i18n["ui"])
+        file_replaced += n5
 
         if content != original_content:
             total_changes += file_replaced

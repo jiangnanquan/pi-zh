@@ -10,6 +10,44 @@
     "Trust": "信任",
     "Do not trust": "不信任",
     "Trust (this session only)": "仅本次会话信任",
-    "Do not trust (this session only)": "仅本次会话不信任"
+    "Do not trust (this session only)": "仅本次会话不信任",
+
+    "clear/exit": "清屏/退出",
+    "Press ${keyText(\"app.tools.expand\")} to show full startup help and loaded resources.": "按 ${keyText(\"app.tools.expand\")} 查看完整启动帮助与已加载资源。",
+    "Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.": "Pi 能够解释自身功能并查阅自带文档。可直接向其提问如何使用或扩展 Pi。",
+    "${keyText(\"app.clear\")} twice": "${keyText(\"app.clear\")} 连按两次",
+    "to interrupt": "中断操作",
+    "to clear": "清空输入框",
+    "to exit": "退出",
+    "to exit (empty)": "退出（输入框为空时）",
+    "to suspend": "挂起到后台",
+    "to delete to end": "删除至行尾",
+    "to cycle thinking level": "切换思考级别",
+    "to cycle models": "切换模型",
+    "to select model": "选择模型",
+    "to expand tools": "展开工具输出",
+    "to expand thinking": "展开思考过程",
+    "for external editor": "打开外部编辑器",
+    "to queue follow-up": "排队跟进消息",
+    "to edit all queued messages": "编辑排队中的消息",
+    "to paste image (with text fallback)": "粘贴图片（支持文本降级）"
+  },
+  "startup_hints": {
+    "interrupt": "中断",
+    "commands": "命令",
+    "bash": "执行终端",
+    "more": "更多",
+    "for commands": "查看命令列表",
+    "to run bash": "运行终端命令",
+    "to run bash (no context)": "运行终端命令（无上下文）",
+    "to attach": "添加附件",
+    "drop files": "拖拽文件"
+  },
+  "loaded_sections": {
+    "Context": "上下文",
+    "Skills": "技能",
+    "Prompts": "提示词模版",
+    "Extensions": "扩展",
+    "Themes": "主题"
   }
 }

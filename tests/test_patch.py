@@ -80,6 +80,21 @@ let isTrustMode = true;
         self.assertIn('let isTrustMode = true;', patched)
         self.assertNotIn("defaultProject信任", patched)
 
+    def test_startup_banner_contract(self):
+        """验证启动横幅与资源区块汉化"""
+        ui = self.i18n["ui"]
+        sample_code = """
+compactInstructions=[hint("app.interrupt","interrupt"),rawKeyHint("/","commands"),rawKeyHint("!","bash"),hint("app.tools.expand","more")];
+addLoadedSection("Context", contextCompactList, contextList);
+"""
+        patched, count = patch_engine.patch_startup_banner(sample_code, ui)
+        self.assertGreater(count, 0)
+        self.assertIn('"中断"', patched)
+        self.assertIn('"命令"', patched)
+        self.assertIn('"执行终端"', patched)
+        self.assertIn('"更多"', patched)
+        self.assertIn('addLoadedSection("上下文"', patched)
+
 
 if __name__ == "__main__":
     unittest.main()
