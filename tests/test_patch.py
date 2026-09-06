@@ -65,6 +65,29 @@ export const KEYBINDINGS = {
         self.assertIn("取消或中止当前操作", patched)
         self.assertIn("清空输入框", patched)
 
+    def test_settings_contract(self):
+        """验证设置菜单项汉化，覆盖模版反引号、内嵌单引号及跨行格式"""
+        settings = self.i18n["settings"]
+        self.assertGreaterEqual(len(settings), 30, "设置项总数应不少于 30 条")
+
+        sample_code = """
+items = [
+    { id: "autocompact", label: "Auto-compact", description: "Automatically compact context when it gets too large" },
+    { id: "steering-mode", label: "Steering mode", description: "Enter while streaming queues steering messages. 'one-at-a-time': deliver one, wait for response. 'all': deliver all at once." },
+    { id: "follow-up-mode", label: "Follow-up mode", description: `${followUpKey} queues follow-up messages until agent stops. 'one-at-a-time': deliver one, wait for response. 'all': deliver all at once.` },
+    { id: "cache-miss-notices", label: "Cache miss notices", description: "Show transcript notices for cache costs and provider recovery diagnostics" }
+];
+"""
+        patched, count = patch_engine.patch_settings(sample_code, settings)
+        self.assertEqual(count, 8, "4 个设置项应各有 label 和 description 被成功汉化，共 8 处")
+        self.assertIn('"自动压缩上下文"', patched)
+        self.assertIn('"当会话上下文过大时自动执行压缩"', patched)
+        self.assertIn('"实时转向模式"', patched)
+        self.assertIn('"跟进消息模式"', patched)
+        self.assertIn('`${followUpKey} 排队跟进', patched)
+        self.assertIn('"缓存未命中提示"', patched)
+        self.assertIn('"在会话记录中显示缓存成本与提供商恢复诊断提示"', patched)
+
     def test_red_line_identifier_isolation(self):
         """红线测试：字面量替换不得误伤变量名或标识符"""
         ui = {"exact_literals": {"Trust": "信任"}}

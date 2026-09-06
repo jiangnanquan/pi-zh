@@ -171,6 +171,7 @@ def patch_keybindings(content: str, kb_dict: dict) -> tuple[str, int]:
 def patch_settings(content: str, settings_dict: dict) -> tuple[str, int]:
     """
     汉化交互设置菜单 label 和 description
+    支持单引号、双引号、反引号以及内嵌引号与模版表达式
     """
     replaced_count = 0
     for item_id, item in settings_dict.items():
@@ -179,18 +180,18 @@ def patch_settings(content: str, settings_dict: dict) -> tuple[str, int]:
 
         if zh_label:
             pattern_label = re.compile(
-                r'(\bid\s*:\s*["\']' + re.escape(item_id) + r'["\'][^}]*\blabel\s*:\s*["\'])([^"\']+)(["\'])'
+                r'(\bid\s*:\s*["\']' + re.escape(item_id) + r'["\'][\s\S]{0,150}?\blabel\s*:\s*)(["\'])(.*?)\2'
             )
-            new_content, n = pattern_label.subn(r'\g<1>' + zh_label + r'\g<3>', content)
+            new_content, n = pattern_label.subn(r'\g<1>\g<2>' + zh_label + r'\g<2>', content)
             if n > 0:
                 content = new_content
                 replaced_count += n
 
         if zh_desc:
             pattern_desc = re.compile(
-                r'(\bid\s*:\s*["\']' + re.escape(item_id) + r'["\'][^}]*\bdescription\s*:\s*["\'])([^"\']+)(["\'])'
+                r'(\bid\s*:\s*["\']' + re.escape(item_id) + r'["\'][\s\S]{0,350}?\bdescription\s*:\s*)(["\'`])([\s\S]*?)\2'
             )
-            new_content, n = pattern_desc.subn(r'\g<1>' + zh_desc + r'\g<3>', content)
+            new_content, n = pattern_desc.subn(r'\g<1>\g<2>' + zh_desc + r'\g<2>', content)
             if n > 0:
                 content = new_content
                 replaced_count += n
@@ -310,6 +311,7 @@ def apply_patch(pkg_dir: Path, repo_root: Path, force=False, dry_run=False):
         pkg_dir / "dist" / "cli" / "args.js",
         pkg_dir / "dist" / "modes" / "interactive" / "interactive-mode.js",
         pkg_dir / "dist" / "modes" / "interactive" / "components" / "model-selector.js",
+        pkg_dir / "dist" / "modes" / "interactive" / "components" / "settings-selector.js",
         pkg_dir / "dist" / "modes" / "interactive" / "components" / "settings-submenu.js",
         pkg_dir / "dist" / "modes" / "interactive" / "components" / "scoped-models-selector.js",
         pkg_dir / "dist" / "modes" / "interactive" / "components" / "oauth-selector.js",

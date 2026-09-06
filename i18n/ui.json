@@ -60,7 +60,16 @@
     "Sign in with an account": "通过账号登录",
     "Sign in with an API key": "通过 API 密钥登录",
     "Model Configuration": "模型配置",
-    "Session-only. ${keyDisplayText(\"app.models.save\")} to save to settings.": "仅本次会话生效。按 ${keyDisplayText(\"app.models.save\")} 保存至设置。"
+    "Session-only. ${keyDisplayText(\"app.models.save\")} to save to settings.": "仅本次会话生效。按 ${keyDisplayText(\"app.models.save\")} 保存至设置。",
+
+    "  Type to search · Enter/Space to change · Esc to cancel": "  输入文字搜索 · Enter/空格 切换 · Esc 取消",
+    "  Type to search \\xB7 Enter/Space to change \\xB7 Esc to cancel": "  输入文字搜索 · Enter/空格 切换 · Esc 取消",
+    "  Type to search \\u00b7 Enter/Space to change \\u00b7 Esc to cancel": "  输入文字搜索 · Enter/空格 切换 · Esc 取消",
+    "  Enter/Space to change · Esc to cancel": "  Enter/空格 切换 · Esc 取消",
+    "  Enter/Space to change \\xB7 Esc to cancel": "  Enter/空格 切换 · Esc 取消",
+    "  Enter/Space to change \\u00b7 Esc to cancel": "  Enter/空格 切换 · Esc 取消",
+    "  No settings available": "  暂无可用设置",
+    "  No matching settings": "  未找到匹配的设置"
   },
   "startup_hints": {
     "interrupt": "中断",

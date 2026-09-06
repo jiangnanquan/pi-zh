@@ -1,4 +1,68 @@
 {
+  "autocompact": {
+    "label": "自动压缩上下文",
+    "description": "当会话上下文过大时自动执行压缩"
+  },
+  "steering-mode": {
+    "label": "实时转向模式",
+    "description": "在流式输出时按回车排队发送转向消息。'one-at-a-time'：发送一条，等待响应。'all'：一次性发送全部。"
+  },
+  "follow-up-mode": {
+    "label": "跟进消息模式",
+    "description": "${followUpKey} 排队跟进消息直至助手停止。'one-at-a-time'：发送一条，等待响应。'all'：一次性发送全部。"
+  },
+  "transport": {
+    "label": "传输协议",
+    "description": "支持多协议的模型服务商的首选传输方式（SSE / WebSocket 等）"
+  },
+  "http-idle-timeout": {
+    "label": "HTTP 空闲超时",
+    "description": "等待 HTTP 响应头或数据块的最大空闲间隔。对于暂停超过 5 分钟的本地模型可禁用。"
+  },
+  "hide-thinking": {
+    "label": "隐藏思考过程",
+    "description": "在助手回复中隐藏思考过程块"
+  },
+  "mermaid-rendering": {
+    "label": "Mermaid 图表渲染",
+    "description": "将 Mermaid 代码块渲染为终端 Unicode 图表"
+  },
+  "cache-miss-notices": {
+    "label": "缓存未命中提示",
+    "description": "在会话记录中显示缓存成本与提供商恢复诊断提示"
+  },
+  "collapse-changelog": {
+    "label": "折叠更新日志",
+    "description": "升级后展示精简版更新日志"
+  },
+  "quiet-startup": {
+    "label": "静默启动",
+    "description": "禁用启动时的冗长信息打印"
+  },
+  "install-telemetry": {
+    "label": "安装与更新遥测",
+    "description": "在检测到版本更新后发送匿名版本/更新探测请求"
+  },
+  "default-project-trust": {
+    "label": "默认项目信任策略",
+    "description": "当无扩展或已保存的信任决策时的项目信任回退行为"
+  },
+  "double-escape-action": {
+    "label": "双击 Escape 动作",
+    "description": "输入框为空时连按两下 Escape 执行的操作"
+  },
+  "tree-filter-mode": {
+    "label": "会话树默认过滤模式",
+    "description": "打开 /tree 时的默认过滤视图"
+  },
+  "warnings": {
+    "label": "警告提示配置",
+    "description": "启用或禁用单独的特定警告项"
+  },
+  "model-thinking": {
+    "label": "按模型配置默认思考级别",
+    "description": "覆盖特定模型的默认思考级别。${cycleThinkingKey} 可在会话中随时切换。"
+  },
   "tui-mode": {
     "label": "TUI 布局模式",
     "description": "界面布局；全屏模式（fullscreen）处于实验阶段"
@@ -20,7 +84,7 @@
     "description": "界面色彩搭配与高亮主题"
   },
   "show-images": {
-    "label": "显示图片",
+    "label": "终端显示图片",
     "description": "在支持的终端内直接内联渲染显示图片"
   },
   "image-width-cells": {
@@ -28,12 +92,12 @@
     "description": "终端内联图片的首选列宽（字符单元格数）"
   },
   "auto-resize-images": {
-    "label": "自动缩放图片",
+    "label": "自动缩放超大图片",
     "description": "将超大尺寸图片自动等比压缩至最大 2000x2000 以确保模型兼容"
   },
   "block-images": {
     "label": "阻止发送图片",
-    "description": "禁止向大模型提供商发送任何图片输入"
+    "description": "禁止向大模型服务商发送任何图片输入"
   },
   "skill-commands": {
     "label": "技能斜杠命令",
@@ -52,7 +116,7 @@
     "description": "用户提问、助手回复与思考过程的左右水平边距"
   },
   "autocomplete-max-visible": {
-    "label": "自动补全最多项",
+    "label": "自动补全最大项数",
     "description": "斜杠命令与自动补全浮窗中单屏最大可见项数 (3-20)"
   },
   "clear-on-shrink": {
@@ -62,5 +126,26 @@
   "terminal-progress": {
     "label": "标签栏进度显示",
     "description": "在支持的终端标签栏中显示 OSC 9;4 实时任务进度条"
+  },
+
+  "anthropic-extra-usage": {
+    "label": "Anthropic 额外用量警告",
+    "description": "当 Anthropic 订阅授权可能产生付费额外用量时弹出警告"
+  },
+  "light-theme": {
+    "label": "浅色外观主题",
+    "description": "终端处于浅色外观时自动模式下使用的主题"
+  },
+  "dark-theme": {
+    "label": "深色外观主题",
+    "description": "终端处于深色外观时自动模式下使用的主题"
+  },
+  "apply": {
+    "label": "应用主题设置",
+    "description": "保存并返回"
+  },
+  "single-mode": {
+    "label": "切换模式",
+    "description": "切换为深浅色通用的单一主题模式"
   }
 }
