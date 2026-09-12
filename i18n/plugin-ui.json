@@ -1,0 +1,186 @@
+{
+  "_readme": "pi-zh 插件 UI 汉化字典（维护线 C）。这里收录第三方插件中『无法用运行时覆盖实现』的界面渲染文案：插件用 hardcoded 字符串渲染 TUI 组件，无注册接口可拦截，只能对插件源文件打精确字面量补丁。汉化对象与原文一对一绑定，插件升级改写措辞时由 patch_plugin_ui.py 的未命中检测报出漂移。命令名、变量名、品牌标题（如 pi agent、模型名）一律不收录在 replacements。",
+  "_update_policy": "补 replacements 条目时必须：① 用 grep 确认 en 原文在目标文件中唯一命中；② 带上下文的长串优先（literal 模式只匹配引号包裹的字面量，raw 模式必须自带足够上下文，禁止裸单词）。\n\ncode_patches 是另一类东西：它不是汉化，而是『经用户逐条授权的插件行为补丁』（如让 editor 边框继承 pi 思考层级色）。写入规则：① 必须有 id / reason / authorized_on（YYYY-MM-DD），缺一不可；② from 必须是自带上下文的多行或≥ 30 字符的精确片段；③ 必须保留原行为作为回退分支，不得删掉原有实现；④ 与汉化共用同一套干净基底、未命中拦截与 jiti 体检，--restore 一并回滚。",
+  "targets": [
+    {
+      "package": "pi-powerline-footer",
+      "file": "welcome.ts",
+      "source_version": "0.17.1",
+      "verify_expect": [
+        "欢迎回来",
+        "已加载",
+        "最近会话",
+        "个上下文文件"
+      ],
+      "replacements_note": "以下条目全部为渲染期硬编码文案（literal 只命中引号内字面量，raw 自带上下文），不含任何逻辑改动。",
+      "note": "启动欢迎页（welcome header / overlay）渲染文案。布局宽度由 pi-tui 的 visibleWidth 动态计算，中文全角宽度自动适配，无需改动布局参数。",
+      "replacements": [
+        {
+          "mode": "raw",
+          "en": "Press any key to continue (${this.countdown}s)",
+          "zh": "按任意键继续（${this.countdown}s）",
+          "note": "overlay 底部倒计时（quietStartup: false 时可见）"
+        },
+        {
+          "mode": "raw",
+          "en": "${dim(\"/\")} for commands",
+          "zh": "${dim(\"/\")} 查看命令列表",
+          "note": "与 i18n/ui.json 的 startup_hints.for commands 基线一致"
+        },
+        {
+          "mode": "raw",
+          "en": "${dim(\"!\")} to run bash",
+          "zh": "${dim(\"!\")} 运行终端命令",
+          "note": "与 i18n/ui.json 的 startup_hints.to run bash 基线一致"
+        },
+        {
+          "mode": "raw",
+          "en": "${dim(\"Shift+Tab\")} cycle thinking",
+          "zh": "${dim(\"Shift+Tab\")} 切换思考级别",
+          "note": "与 i18n/ui.json 的 to cycle thinking level 基线一致"
+        },
+        {
+          "mode": "raw",
+          "en": "context file${contextFiles !== 1 ? \"s\" : \"\"}",
+          "zh": "个上下文文件",
+          "note": "连同英文复数后缀表达式一起替换，中文无单复数"
+        },
+        {
+          "mode": "raw",
+          "en": "extension${extensions !== 1 ? \"s\" : \"\"}",
+          "zh": "个扩展"
+        },
+        {
+          "mode": "raw",
+          "en": "skill${skills !== 1 ? \"s\" : \"\"}",
+          "zh": "个技能"
+        },
+        {
+          "mode": "raw",
+          "en": "prompt template${promptTemplates !== 1 ? \"s\" : \"\"}",
+          "zh": "个提示词模板"
+        },
+        {
+          "mode": "raw",
+          "en": "initial prompt tokens",
+          "zh": "初始提示词 tokens",
+          "note": "tokens 为社区通用技术名词，保留英文"
+        },
+        {
+          "mode": "raw",
+          "en": "${days}d ago",
+          "zh": "${days} 天前"
+        },
+        {
+          "mode": "raw",
+          "en": "${hours}h ago",
+          "zh": "${hours} 小时前"
+        },
+        {
+          "mode": "raw",
+          "en": "${minutes}m ago",
+          "zh": "${minutes} 分钟前"
+        },
+        {
+          "mode": "literal",
+          "en": "Welcome back!",
+          "zh": "欢迎回来！"
+        },
+        {
+          "mode": "literal",
+          "en": "Tips",
+          "zh": "提示"
+        },
+        {
+          "mode": "literal",
+          "en": "Loaded",
+          "zh": "已加载"
+        },
+        {
+          "mode": "literal",
+          "en": "Recent sessions",
+          "zh": "最近会话"
+        },
+        {
+          "mode": "literal",
+          "en": "No recent sessions",
+          "zh": "暂无最近会话"
+        },
+        {
+          "mode": "literal",
+          "en": "No extensions loaded",
+          "zh": "未加载扩展"
+        },
+        {
+          "mode": "literal",
+          "en": "just now",
+          "zh": "刚刚"
+        }
+      ],
+      "preserved": [
+        " pi agent （品牌标题）",
+        "模型名与 provider 名（运行时数据）",
+        "• / Shift+Tab / 按键提示符（快捷键与符号原文）"
+      ]
+    },
+    {
+      "package": "pi-powerline-footer",
+      "file": "index.ts",
+      "source_version": "0.17.1",
+      "note": "插件主入口。本 target 不承载任何汉化文案，只承载『经用户逐条授权』的行为补丁：① editor-chrome-thinking-border：powerline 自己重画 editor 上下边框（ANSI 244 硬编码），盖掉了 pi 本体的思考层级边框色；此处改为优先读取 pi 注入到 editor 实例的 borderColor（thinking 色），读取失败时回退原灰色。补丁只改颜色来源，不改布局、不改渲染结构。② welcome-header-eager-shell：启动欢迎页先用空数据挂 header 立即上屏，取数完成后再换 header 重绘（见 code_patches）。③ dock-trim-primary-into-footer：placement=below 时主状态行改由 footer 槽位渲染，消掉 pi dock 给空壳 footer 保底的那一行空白。",
+      "replacements": [],
+      "verify_expect": [],
+      "code_patches": [
+        {
+          "id": "editor-chrome-thinking-border",
+          "authorized_on": "2026-09-12",
+          "reason": "powerline 的 editor 上下边框硬编码 ANSI 244 灰，盖掉了 pi 本体的思考层级边框色（max → #ff5fff）；改为优先使用 pi 注入到 editor 实例上的 borderColor，使边框与思考层级联动，读取失败时回退原灰色。",
+          "from": "  const borderColor = getFgAnsiCode(\"sep\");\n",
+          "to": "  const piBorderColor = Reflect.get(editor as object, \"borderColor\");\n"
+        },
+        {
+          "id": "editor-chrome-thinking-border",
+          "authorized_on": "2026-09-12",
+          "reason": "同上：fast 渲染路径的上下边框改用 borderColor 上色，保留灰色回退分支。",
+          "from": "    return ` ${borderColor}${text}${ansi.reset}`;\n",
+          "to": "    return typeof piBorderColor === \"function\" ? ` ${piBorderColor(text)}` : ` ${getFgAnsiCode(\"sep\")}${text}${ansi.reset}`;\n"
+        },
+        {
+          "id": "editor-chrome-thinking-border",
+          "authorized_on": "2026-09-12",
+          "reason": "同上：非 fast 渲染路径的边框上色函数 bc 改用 borderColor，保留灰色回退分支。",
+          "from": "          const bc = (s: string) => `${getFgAnsiCode(\"sep\")}${s}${ansi.reset}`;\n",
+          "to": "          const piBorderColor = Reflect.get(editor, \"borderColor\");\n          const bc = typeof piBorderColor === \"function\"\n            ? (s: string) => piBorderColor(s)\n            : (s: string) => `${getFgAnsiCode(\"sep\")}${s}${ansi.reset}`;\n"
+        },
+        {
+          "id": "welcome-header-eager-shell",
+          "authorized_on": "2026-09-13",
+          "reason": "启动欢迎页在 session_start 的宏任务里先 await 扫会话目录取数（getRecentSessions）再挂 header，pty 实测这段取数占 183ms（宏任务 1227ms 触发 → header 1410ms 上屏），期间屏幕中央空白。本补丁改为先用空数据挂 header 立即上屏，取数完成后换用完整数据的新 header 触发重绘。注意：已验证「在 session_start 同步阶段挂 header」无效（pi 会覆盖，探针 A 从未上屏），故本补丁仍在原 setTimeout 宏任务内执行。回退分支：await 后 canShowWelcome 失败时调 dismissWelcome(ctx) 清掉空壳，不留残留。",
+          "from": "        if (!canShowWelcome(ctx, request, generation)) return;\n        const recentSessions = await getRecentSessions(3, request.signal);\n        if (!canShowWelcome(ctx, request, generation)) return;\n        const modelName = ctx.model?.name || ctx.model?.id || \"No model\";\n        const providerName = ctx.model?.provider || \"Unknown\";\n        const loadedCounts = discoverLoadedCounts();\n        const initialContextTokens = estimateInitialContextTokens(ctx);\n\n        const header = new WelcomeHeader(modelName, providerName, recentSessions, loadedCounts, initialContextTokens);\n        welcomeHeaderActive = true;\n        ctx.ui.setHeader(() => header);\n",
+          "to": "        if (!canShowWelcome(ctx, request, generation)) return;\n        const modelName = ctx.model?.name || ctx.model?.id || \"No model\";\n        const providerName = ctx.model?.provider || \"Unknown\";\n\n        // pi-zh 行为补丁：先用空数据挂 header 让欢迎页立即上屏，取数完成后再填充\n        const shellHeader = new WelcomeHeader(modelName, providerName);\n        welcomeHeaderActive = true;\n        ctx.ui.setHeader(() => shellHeader);\n\n        const recentSessions = await getRecentSessions(3, request.signal);\n        if (!canShowWelcome(ctx, request, generation)) {\n          dismissWelcome(ctx);\n          return;\n        }\n        const loadedCounts = discoverLoadedCounts();\n        const initialContextTokens = estimateInitialContextTokens(ctx);\n\n        // pi-zh 行为补丁：换用完整数据的 header 触发重绘\n        const header = new WelcomeHeader(modelName, providerName, recentSessions, loadedCounts, initialContextTokens);\n        ctx.ui.setHeader(() => header);\n"
+        },
+        {
+          "id": "dock-trim-primary-into-footer",
+          "authorized_on": "2026-09-13",
+          "reason": "输入框下方被白占一行：powerline 为了拿 footerData（git 分支/扩展状态）注册了一个 render() 只返回 [\"\"] 的空壳 footer，而 pi 的 fullscreen dock（chat-viewport.js）给 footer 槽位 minSize: 1 保底，空壳同样占一行。本补丁把 footer 工厂原本未使用的 _theme 形参启用为 theme，供渲染主状态行使用；不改渲染逻辑、不改配色。",
+          "from": "    ctx.ui.setFooter((tui: any, _theme: Theme, footerData: ReadonlyFooterDataProvider) => {",
+          "to": "    ctx.ui.setFooter((tui: any, theme: Theme, footerData: ReadonlyFooterDataProvider) => {"
+        },
+        {
+          "id": "dock-trim-primary-into-footer",
+          "authorized_on": "2026-09-13",
+          "reason": "同上：placement=below 时让空壳 footer 直接渲染主状态行，替掉那行占位空白；placement=above 保留原空壳行为（该模式下主状态行仍由 powerline-top widget 画在 editor 上方）。回退分支：非 below 一律返回原 [\"\"]。",
+          "from": "        render(): string[] {\n          return [\"\"];\n        },\n",
+          "to": "        render(width: number): string[] {\n          // pi-zh dock 精简：placement=below 时主状态行改由 footer 槽位渲染（替掉空壳占位行）\n          if (config.placement !== \"below\") return [\"\"];\n          return renderPowerlinePrimaryLines(width, theme);\n        },\n"
+        },
+        {
+          "id": "dock-trim-primary-into-footer",
+          "authorized_on": "2026-09-13",
+          "reason": "同上：placement=below 时主状态行已由 footer 槽位渲染，powerline-top widget 必须返回空数组，否则同一行会在 dock 里出现两次；placement=above 保持原实现（含 perf 计时段与 resetLayoutCache 失效钩子）。",
+          "from": "      render(width: number): string[] {\n        return measureWidget(\"primary\", () => renderPowerlinePrimaryLines(width, theme));\n      },\n    }), { placement: config.placement === \"below\" ? \"belowEditor\" : \"aboveEditor\" });\n",
+          "to": "      render(width: number): string[] {\n        // pi-zh dock 精简：placement=below 时主状态行由 footer 槽位渲染，这里不再重复占行\n        if (config.placement === \"below\") return [];\n        return measureWidget(\"primary\", () => renderPowerlinePrimaryLines(width, theme));\n      },\n    }), { placement: config.placement === \"below\" ? \"belowEditor\" : \"aboveEditor\" });\n"
+        }
+      ]
+    }
+  ]
+}

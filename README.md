@@ -17,7 +17,9 @@
 - **零破坏性与干净基底**：打补丁前自动保留干净的官方原件备份（`.zh-backup`），每次打补丁均基于原始原件执行，杜绝“补丁叠补丁”；支持一键秒级还原回官方原版。
 - **语法安全沙箱**：每次补丁写入后，引擎自动使用 `node --check` 进行 JavaScript 语法树校验，校验未通过则立即原子回滚，绝不产生损坏的半成品文件。
 - **版本严格跟随**：`pi --version` 严格显示上游官方版本号（当前基准 v0.85.1），不自造版本号。
-- **插件零侵入**：第三方插件的简介汉化走「运行时覆盖 + 字典映射」，不写入任何插件文件，插件升级后无需重新打补丁。
+- **插件简介零侵入**：第三方插件的命令简介汉化走「运行时覆盖 + 字典映射」，不写入任何插件文件，插件升级后无需重新打补丁。
+- **插件渲染文案最小补丁**：插件渲染期硬编码的文案（如欢迎页）没有注册接口可拦截，只能打精确字面量补丁；补丁只动字符串与模板片段，配 `.zh-backup` 干净基底、jiti 加载体检与一键还原。
+- **行为补丁走授权通道**：C 线原则上不改插件行为；例外（如让 powerline 的 editor 边框重新跟随 pi 的思考层级色）必须进 `code_patches`，带 `id`/`reason`/`authorized_on`、保留原实现作回退，并用 pty 探针回归验证。
 
 ---
 
@@ -59,6 +61,37 @@ bash scripts/install_plugin_i18n.sh --uninstall
 
 安装后在 pi 会话内执行 `/reload`（或重启 pi）即可看到中文简介。
 
+### 5. 插件 UI 汉化（欢迎页等渲染文案）
+
+```bash
+# 应用：备份干净基底 → 精确字面量替换 → jiti 加载体检 → 渲染行宽断言
+bash scripts/apply_plugin_ui.sh
+
+# 漂移检测：插件升级后看字典是否仍全部命中（不写盘）
+bash scripts/apply_plugin_ui.sh --check
+
+# 状态 / 还原
+bash scripts/apply_plugin_ui.sh --status
+bash scripts/apply_plugin_ui.sh --restore
+```
+
+覆盖 `pi-powerline-footer` 的启动欢迎页（`welcome.ts`）：提示语、已加载计数、最近会话与相对时间的文案。重启 pi 后生效。
+
+同一条维护线还含**三条用户授权行为补丁**（均带 `id` / `reason` / `authorized_on` 与回退分支）：
+
+1. `editor-chrome-thinking-border` —— powerline 重画的 editor 上下边框原本硬编码 ANSI 244 灰，盖掉了 pi 本体随
+   思考层级变化的边框色（`max` → `#ff5fff` 紫）；改为优先继承 pi 注入的 `borderColor`，并保留灰色回退。
+2. `welcome-header-eager-shell` —— 启动欢迎页先用空数据挂 header 立即上屏，取数完成后再换 header 重绘。
+3. `dock-trim-primary-into-footer` —— `placement=below` 时主状态行改由 footer 槽位渲染，消掉 powerline 空壳
+   footer 白占的那一行（pi 的 dock 给 footer 槽位 `minSize: 1` 保底）。
+
+行为验收用真图形探针（pty 启动一次 pi，解码最终帧）：
+
+```bash
+python3 scripts/probe_editor_border.py   # 边框色：未打补丁 editor 宽 紫 2 / 灰 4；已打补丁 紫 6 / 灰 0
+python3 scripts/probe_dock_rows.py       # dock 行数：未打补丁状态行后还有空壳占位行；已打补丁状态行即最后一行
+```
+
 ---
 
 ## 插件简介汉化（运行时覆盖）
@@ -81,6 +114,25 @@ python3 scripts/scan_plugin_commands.py --update-baseline   # 刷新 en 原文�
 
 ---
 
+## 插件 UI 汉化（渲染文案补丁）
+
+有些插件文案在**渲染期硬编码**（`pi-powerline-footer` 的欢迎页 `welcome.ts` 就是典型），没有任何注册接口可供扩展拦截，
+运行时覆盖无能为力，因此这条线改用“最小补丁”：
+
+- 汉化条目全部维护在 `i18n/plugin-ui.json`，短词用 `literal` 模式（只命中引号内字面量），带上下文的模板片段用 `raw` 模式；
+- 首次打补丁前留存官方原件 `welcome.ts.zh-backup`，重复应用均以备份为源，**永不补丁叠补丁**，随时 `--restore` 秒级回到英文；
+- 上游改措辞时以“未命中”形式报漂移，默认拒绍写盘，不产生半成品汉化；
+- 写盘后强制体检：`scripts/verify_plugin_ts.mjs` 用 **pi 自带的 jiti 加载器**真实加载插件源码，
+  再实例化欢迎页组件渲染一次，断言行宽自洽（中文全角不错位）；失败立即原子回滚。
+
+```bash
+bash scripts/apply_plugin_ui.sh          # 应用或幂等重打
+bash scripts/apply_plugin_ui.sh --check  # 插件升级后的漂移检测
+python3 tests/test_plugin_ui.py          # 幂等 / 干净基底 / 未命中拦截 / 可还原 单测
+```
+
+---
+
 ## 目录结构
 
 ```text
@@ -95,19 +147,26 @@ pi-zh/
 │   ├── settings.json            # 交互设置菜单选项翻译表
 │   ├── cli.json                 # CLI --help 参数与帮助说明
 │   ├── ui.json                  # TUI 状态栏与交互短语
-│   └── plugins.json             # 第三方插件斜杠命令简介（source/en/zh 三元组）
+│   ├── plugins.json             # 第三方插件斜杠命令简介（source/en/zh 三元组）
+│   └── plugin-ui.json           # 插件 UI 补丁（欢迎页文案 + 用户授权行为补丁）
 ├── extensions/
 │   └── plugin-i18n.ts           # 插件简介汉化的运行时覆盖扩展
 ├── scripts/
-│   ├── apply_patch.sh           # 一键应用/还原入口脚本
+│   ├── apply_patch.sh           # 一键应用/还原入口脚本（A 线：pi 本体）
 │   ├── patch_engine.py          # 补丁执行引擎（安全匹配、备份管理、语法校验）
-│   ├── install_plugin_i18n.sh   # 插件简介汉化：安装 / 状态 / 卸载
+│   ├── install_plugin_i18n.sh   # 插件简介汉化：安装 / 状态 / 卸载（B 线）
 │   ├── scan_plugin_commands.py  # 插件命令扫描与翻译漂移检查
-│   └── smoke_test.sh            # 一键冒烟测试脚本
+│   ├── apply_plugin_ui.sh       # 插件 UI 汉化：应用 / 检查 / 状态 / 还原（C 线）
+│   ├── patch_plugin_ui.py       # 插件 UI 补丁引擎（跨文件原子预检、未命中拦截、回滚）
+│   ├── verify_plugin_ts.mjs     # 插件 TS 体检器（jiti 加载 + 渲染行宽断言）
+│   ├── probe_editor_border.py   # 行为补丁探针（pty 真启 pi，统计紫/灰边框行）
+│   ├── probe_dock_rows.py       # dock 行数探针（pty 解码最终帧，断言状态行占满 footer 槽位）
+│   └── smoke_test.sh            # 一键冒烟测试脚本（五项）
 └── tests/
     ├── test_patch.py            # CLI 汉化的单元测试与红线隔离测试
     ├── test_plugin_i18n.py      # 插件字典契约与扫描器测试
-    └── test_plugin_i18n.mjs     # 运行时覆盖扩展的端到端契约测试
+    ├── test_plugin_i18n.mjs     # 运行时覆盖扩展的端到端契约测试
+    └── test_plugin_ui.py        # 插件 UI 汉化：幂等、干净基底与还原测试
 ```
 
 ---
@@ -120,7 +179,10 @@ pi-zh/
 | **CLI Flags 原文锁定** | `--provider`、`--thinking` 等参数名禁止修改 | 导致外部脚本与命令行调用参数失效 |
 | **标识符与变量隔离** | 单独单词必须限定在字符串引号字面量内匹配 | 避免误伤 `defaultProjectTrust` 等内部变量名 |
 | **基底还原机制** | 每次打补丁必须以干净的 `.zh-backup` 为源基底 | 避免重复 patch 累加导致语法或逻辑错乱 |
-| **插件源码只读** | 插件简介汉化走运行时覆盖，禁止改写 `node_modules` 内插件文件 | 避免插件升级/重装后被覆盖、以及破坏插件完整性校验 |
+| **插件命令简介只读** | 命令简介汉化走运行时覆盖，禁止改写 `node_modules` 内插件的 `description` | 避免插件升级/重装后失效，以及破坏插件完整性校验 |
+| **渲染文案补丁限界** | 文案补丁只能进 `replacements`，禁止改布局宽度、函数逻辑与导出签名 | 保证汉化不改变插件行为，且能被 jiti 体检与一键还原兜住 |
+| **行为补丁必须授权** | 行为改动只能进 `code_patches`，且必须带 `id`/`reason`/`authorized_on` 与回退分支 | 改动可审计、可回滚，上游重构时能被未命中检测及时暴露 |
+| **C 线禁止裸单词替换** | 短词必须用 `literal` 模式锁定在引号内 | 避免 `Tips` / `Loaded` 这类短词误伤同名标识符 |
 
 ---
 

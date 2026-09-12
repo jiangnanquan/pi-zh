@@ -36,6 +36,43 @@ bash scripts/install_plugin_i18n.sh --uninstall # 卸载：插件简介立即恢
 
 汉化效果在 pi 会话内执行 `/reload` 后生效，无需重启进程。
 
+### 5. 插件 UI 汉化（欢迎页等渲染文案）
+
+```bash
+bash scripts/apply_plugin_ui.sh              # 应用：备份基底 → 精确替换 → jiti 加载体检 → 渲染行宽断言
+bash scripts/apply_plugin_ui.sh --check      # 漂移检测：字典是否全部命中（不写盘）
+bash scripts/apply_plugin_ui.sh --status     # 状态：官方原版 / 已汉化（备份完好）
+bash scripts/apply_plugin_ui.sh --restore    # 还原：欢迎页立即恢复英文
+```
+
+该汉化作用于插件**渲染期硬编码**的文案（如 `pi-powerline-footer` 的欢迎页 `welcome.ts`）——这类文案没有任何注册接口可拦截，
+只能打精确字面量补丁；文案补丁只替换字符串与模板片段。重启 pi 后生效。
+
+同一字典还承载**用户逐条授权的行为补丁**（`code_patches`），当前 3 条：
+
+| `id` | 改了什么 |
+| :--- | :--- |
+| `editor-chrome-thinking-border` | powerline 重画的 editor 上下边框重新跟随 pi 的思考层级色（原先硬编码 ANSI 244 灰，盖掉了 `thinkingMax` 紫色） |
+| `welcome-header-eager-shell` | 启动欢迎页先用空数据挂 header 立即上屏，取数完成后再换 header 重绘 |
+| `dock-trim-primary-into-footer` | `placement=below` 时主状态行改由 footer 槽位渲染，消掉空壳 footer 白占的一行 |
+
+行为补丁的验收需要真图形探针（pty 中真启一次 pi）：
+
+```bash
+python3 scripts/probe_editor_border.py       # 边框色：统计 editor 宽度的紫/灰长横线
+python3 scripts/probe_dock_rows.py           # dock 行数：解码最终帧，断言状态行占满 footer 槽位
+```
+
+基线（退出码 0 = 生效，1 = 未生效）：
+
+| 探针 | 未打补丁 | 已打补丁 |
+| :--- | :--- | :--- |
+| `probe_editor_border.py` | editor 宽 紫 2 / 灰 4 | editor 宽 紫 6 / 灰 0 |
+| `probe_dock_rows.py` | 状态行之后还有 1 行空壳占位 | 屏幕最后一行即主状态行 |
+
+> `probe_dock_rows.py` 的「回显行（↳ 上次输入）」判定跟随 pi 配置里的 `showLastPrompt`：为 `false` 时出现回显行即判失败；
+> 为 `true` 时只提示。要离线复现「有回显行」的情形可加 `--send-prompt "…"`（会真实调用一次模型）。
+
 ---
 
 ## 二、 官方发布新版本后的升级流程
@@ -111,7 +148,49 @@ bash scripts/smoke_test.sh           # 全量冒烟（含插件项）
 
 ---
 
-## 四、 常见问题与排查指南
+## 四、 插件 UI 升级后的增量流程（维护线 C）
+
+`pi-powerline-footer` 这类插件升级会重写整个包目录，**补丁式汉化会被官方文件覆盖**（连同 `.zh-backup` 一起消失），
+但重打是幂等的、成本极低：
+
+### 步骤 1：漂移检测
+
+```bash
+bash scripts/apply_plugin_ui.sh --check
+```
+
+- 全部命中：直接进入步骤 3；
+- 报「未命中」：输出会逐条列出上游已改动的原文，进入步骤 2。
+
+### 步骤 2：人工核对并更新字典
+
+编辑 `i18n/plugin-ui.json`：
+
+| 情况 | 处置 |
+| :--- | :--- |
+| 上游改了措辞 | 把对应条目的 `en` 同步为新措辞，并重新校对 `zh` |
+| 上游删了该文案 | 从 `replacements` 中删除该条目 |
+| 上游新增了文案 | 追加条目：短词用 `literal` 模式，带上下文的模板片段用 `raw` 模式 |
+
+### 步骤 3：重打补丁并验收
+
+```bash
+bash scripts/apply_plugin_ui.sh      # 重新备份基线 → 应用 → jiti 加载体检 → 渲染行宽断言
+python3 tests/test_plugin_ui.py      # 单测：幂等 / 干净基底 / 未命中拦截 / 行为补丁授权
+python3 scripts/probe_editor_border.py    # 行为补丁回归：边框是否仍跟随思考层级色
+python3 scripts/probe_dock_rows.py        # 行为补丁回归：状态行是否仍占满 footer 槽位（无空白占位行）
+bash scripts/smoke_test.sh           # 全量冒烟（含 C 线项）
+```
+
+> 行为补丁（`code_patches`）比文案脆弱：它锚定的是插件实现代码。上游一旦重构该段，`--check` 会报未命中，
+> 此时不要用 `--allow-missing` 绕过——应人工核对新版实现，重新给出 `from`，并确保新写法仍保留原实现作为回退分支
+> （`editor-chrome-*` 保留灰色回退；`dock-trim-*` 在 `placement != below` 时保留原空壳行为）。
+
+体检失败时引擎会自动从备份回滚，插件始终停留在可用状态。
+
+---
+
+## 五、 常见问题与排查指南
 
 ### 1. 运行 `pi` 提示语法错误 (SyntaxError)
 * **原因**：可能某条翻译中包含了未转义的单双引号。
@@ -133,3 +212,28 @@ bash scripts/smoke_test.sh           # 全量冒烟（含插件项）
 
 ### 4. 插件简介汉化会影响模型请求或插件行为吗
 * **不会**。扩展只改写补全面板展示用的 `description` 字符串，不触碰命令名、参数、工具定义与请求 payload；卸载后立即恢复原样。
+
+### 5. 欢迎页在插件升级后变回英文
+* **原因**：插件升级重写了 `welcome.ts`，补丁被官方文件覆盖（C 线属补丁式汉化，这是预期行为）。
+* **处置**：先 `bash scripts/apply_plugin_ui.sh --check` 看有无漂移，再 `bash scripts/apply_plugin_ui.sh` 幂等重打；有漂移时按第四节步骤 2 更新字典。
+
+### 6. `--check` 报「未命中（上游可能改了措辞）」
+* **原因**：插件改了文案措辞或重构了模板表达式，字典的 `en` 锚点已失效。
+* **处置**：按第四节步骤 2 更新 `i18n/plugin-ui.json`。`--allow-missing` 只是应急逃生舱（未命中条目保持英文），不应作为常规流程。
+
+### 7. editor 边框又变回浅灰了
+* **原因**：插件升级重写了 `index.ts`，行为补丁被官方文件覆盖（或上游重构导致锚点失效）。
+* **处置**：`bash scripts/apply_plugin_ui.sh --check` 看未命中项 → 按第四节步骤 2 更新 `code_patches` → 重打补丁 → 跑探针复验。
+
+### 8. 输入框下方多出一行空白 / 多出「↳ 上次输入」回显行
+* **原因（空白行）**：powerline 为了拿 pi 的 `footerData` 注册了一个空壳 footer（`render(): [""]`），
+  而 pi 的 fullscreen dock 给 footer 槽位 `minSize: 1` 保底，于是空壳也占一行。`dock-trim-primary-into-footer`
+  补丁已让 `placement=below` 时主状态行改由该槽位渲染。
+* **处置**：先 `bash scripts/apply_plugin_ui.sh --status` 确认补丁在位；不在位就 `bash scripts/apply_plugin_ui.sh` 重打，
+  再用 `python3 scripts/probe_dock_rows.py` 验收。若换了 `placement`（`/powerline placement above`），补丁会退回原空壳行为。
+* **回显行**：`settings.json` 的 `showLastPrompt`（默认 `true`）控制「↳ 上次输入」回显行；置 `false` 即关闭。
+  验证：`python3 scripts/probe_dock_rows.py --send-prompt "…"`（会真实调用一次模型）。
+
+### 9. C 线汉化是否会把插件改坏
+* **不会**。补丁只命中字符串字面量与模板片段，写盘后强制体检（jiti 真实加载 + 渲染行宽断言），任一项失败立即原子回滚；
+  体检依赖 pi 自带的 jiti，若命令报「未检测到 node」而跳过体检，应按 `--skip-verify` 的风险处理：仅限离线单测使用。

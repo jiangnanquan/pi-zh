@@ -5,11 +5,6 @@
     "maintenance": "插件升级后先跑 python3 scripts/scan_plugin_commands.py --check 看差异，汉化新条目或跑 --update-baseline 刷新 en 原文基线"
   },
   "commands": {
-    "deepseek-tools-status": {
-      "source": "@bacnh85/pi-deepseek-tools",
-      "en": "Show pi-deepseek-tools configuration and statistics.",
-      "zh": "查看 pi-deepseek-tools 配置与统计信息"
-    },
     "todos": {
       "source": "@juicesharp/rpiv-todo",
       "en": "Show all todos on the current branch, grouped by status",
