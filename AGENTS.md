@@ -13,6 +13,9 @@
 5. **插件命令简介零侵入**：第三方插件的斜杠命令简介（`registerCommand` 的 `description`）一律走「运行时覆盖 + `i18n/plugins.json` 字典映射」，严禁改写 `~/.pi/agent/npm/node_modules` 内的任何插件文件。
 6. **插件渲染文案最小补丁**：插件用字面量直接渲染的 TUI 文案（如 `pi-powerline-footer` 的欢迎页）没有任何注册接口可拦截，只能走「精确字面量补丁 + 干净基底 `.zh-backup` + 写盘后强制体检 + 一键还原」（维护线 C）。文案补丁只允许命中字符串字面量与模板片段。
 7. **行为补丁授权通道**：C 线原则上不改插件行为；确有必要时（当前 3 条：editor 边框跟随思考层级色、欢迎页空壳先行、dock 去空白占位行），必须走 `i18n/plugin-ui.json` 的 `code_patches`，且同时满足四条：① 用户逐条明确授权并记录 `authorized_on`；② 写明 `reason`（为什么必须改、依据是什么）；③ 保留原实现作为回退分支，不删原逻辑；④ 与文案共用同一套预检、jiti 体检与 `--restore`。未授权的逻辑改动一律视为红线违规。
+8. **懒人包只分发「协同必需」**：`bundle/` 的内容由 `scripts/bundle_engine.py` 的白名单定义产生（`SETTINGS_WHITELIST` + `BUNDLE_FILES`），判据是「**非默认值 + 非冲突解决 = 不带**」；凭据、会话数据、模型层配置、个人 skill / Agent / 注入词永不进包。
+9. **导出单向**：维护者本机 `~/.pi/agent` 是 SSOT，`bundle/` 是派生物；**永不从仓库反向覆盖本机**。导出过程必须机器可核对、结果可复现，且产物不得含本机绝对路径。
+10. **安装预检先于写盘**：冲突默认拒绝（退出码 2）并列出差异，需显式 `--force-settings` / `--force-files`（覆盖前自动备份）；只改白名单字段，幂等、可精确回滚，并保护用户的手工改动。
 
 ---
 
@@ -30,6 +33,9 @@
 | **C 线越权改逻辑** | 未授权就调整布局宽度、重写函数体或导出签名；或把行为改动混进 `replacements` | 文案改动只能进 `replacements`；行为改动只能进 `code_patches`，且必须带 `id` / `reason` / `authorized_on` 与回退分支；布局类改动（如 `dock-trim-*`）同样只能以「用户逐条授权 + 探针回归」入字典 |
 | **C 线裸单词替换** | 用 `raw` 模式替换 `Tips` 这种短词 | 短词一律用 `literal` 模式锁定在引号内；`raw` 模式必须自带足够上下文 |
 | **越界翻译** | 把插件 `registerTool` 的工具描述或 skill 描述也译了 | 工具描述会进模型请求 payload，按单一职责红线一律不碰 |
+| **懒人包夹带个人上下文** | 把 `auth.json` / `sessions/` / `models.json` / `trust.json` / 个人 skill / `APPEND_SYSTEM.md` 导进 `bundle/` | 只提取 `SETTINGS_WHITELIST` 与 `BUNDLE_FILES`；结构性排除项列入 `manifest.json` 的 `skip` 段并写明原因 |
+| **导出物含本机绝对路径** | 自研扩展里写死 `/Users/jnq/...`；或把本机目录结构写进清单 | 路径一律相对 `$PI_AGENT_DIR`；导出前引擎会扫描绝对路径，命中即拒 |
+| **反向覆盖本机** | 从 `bundle/` 往 `~/.pi/agent/` 做「同步」 | 导出单向：本机是 SSOT；修改本机只能由人在本机进行，再重新导出 |
 
 ---
 
@@ -37,15 +43,15 @@
 
 只有满足以下全部验收项，一次针对 `pi-zh` 的维护或升级才被判定为合格交付：
 
-1. `python3 tests/test_patch.py`、`python3 tests/test_plugin_i18n.py`、`node tests/test_plugin_i18n.mjs`、`python3 tests/test_plugin_ui.py` 单元测试全部通过。
-2. `bash scripts/apply_patch.sh` 执行无报错，补丁成功应用（引擎自带的 `node --check` 语法树校验通过，无 `SyntaxError`）。
+1. `python3 tests/test_patch.py`、`python3 tests/test_plugin_i18n.py`、`node tests/test_plugin_i18n.mjs`、`python3 tests/test_plugin_ui.py`、`python3 tests/test_bundle.py` 单元测试全部通过。
+2. `bash scripts/apply_patch.sh` 与 `bash scripts/apply_plugin_ui.sh` 执行无报错，补丁成功应用（引擎自带的 `node --check` / jiti 校验通过，无 `SyntaxError`）；`bash scripts/check_bundle.sh` 报告 `bundle/` 与维护者本机无漂移。
 3. `bash scripts/smoke_test.sh` 五个 TEST 全部通过：
    - `pi --version` 正常输出官方版本；
    - `pi --help` 正常展示中文说明与中文参数；
    - 插件简介字典与已装插件无新增 / 漂移 / 残留差异；
    - 插件简介运行时覆盖扩展的端到端契约测试通过；
    - 插件 UI 汉化（C 线）字典无漂移，且欢迎页组件可加载、渲染行宽自洽。
-4. 一键还原可用：`bash scripts/apply_patch.sh --restore` 能还原官方原版（`pi --help` 恢复英文），`bash scripts/install_plugin_i18n.sh --uninstall` 能卸载插件简介汉化，`bash scripts/apply_plugin_ui.sh --restore` 能还原插件 UI 英文。
+4. 一键还原可用：`bash scripts/apply_patch.sh --restore` 能还原官方原版（`pi --help` 恢复英文），`bash scripts/install_plugin_i18n.sh --uninstall` 能卸载插件简介汉化，`bash scripts/apply_plugin_ui.sh --restore` 能还原插件 UI 英文，`bash scripts/install_bundle.sh --uninstall --keep-packages` 能精确回滚扩展环境（配置字段恢复原值、本包文件删除或还原）。
 5. 行为补丁（`code_patches`）可回归验证：
    - `python3 scripts/probe_editor_border.py` 判定生效（editor 宽度 ≥100 列的紫色 thinking 边框行 ≥4 且多于同宽度灰行；基线：未打补丁 紫 2 / 灰 4，已打补丁 紫 6 / 灰 0）；
    - `python3 scripts/probe_dock_rows.py` 判定生效（屏幕最后一行即主状态行、无重复渲染、无回显行；`--restore` 后同一探针应判定回退：状态行之后仍有 1 行空壳占位）。

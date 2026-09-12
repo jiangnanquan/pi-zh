@@ -73,6 +73,27 @@ python3 scripts/probe_dock_rows.py           # dock 行数：解码最终帧，�
 > `probe_dock_rows.py` 的「回显行（↳ 上次输入）」判定跟随 pi 配置里的 `showLastPrompt`：为 `false` 时出现回显行即判失败；
 > 为 `true` 时只提示。要离线复现「有回显行」的情形可加 `--send-prompt "…"`（会真实调用一次模型）。
 
+### 6. 扩展环境懒人包（维护线 D 安装 / E 导出）
+
+```bash
+bash scripts/install_bundle.sh --dry-run      # 看安装计划（逐项列出配置 / 文件 / 扩展将做什么）
+bash scripts/install_bundle.sh                # 安装：预检 → 备份 → 写白名单配置 → 落地扩展 → 装 packages（幂等）
+bash scripts/install_bundle.sh --status       # 状态：配置 / 文件 / 扩展三项一致性
+bash scripts/install_bundle.sh --uninstall    # 回滚：配置字段 + 文件 + 本包装过的扩展
+bash scripts/install_bundle.sh --uninstall --keep-packages  # 只回滚配置与文件，保留扩展
+
+bash scripts/export_bundle.sh                 # （维护者）本机 → bundle/ 单向导出（打印变更摘要）
+bash scripts/check_bundle.sh                  # （维护者）漂移检测：本机改了但没导出？
+```
+
+懒人包的内容是一份声明（`bundle/manifest.json`）：扩展清单 + 协同必需配置 + 4 个自研扩展。
+判据是「**非默认值 + 非冲突解决 = 不带**」——所以像 `powerline.placement`、`powerline.cost.currency`
+这类纯偏好不在包内，随个人习惯。
+
+`--uninstall` 是**精确回滚**：配置字段恢复安装前的值（原先没有的删除）、本包新建的文件删除、
+被覆盖的文件从备份还原、只移除本包装过的扩展。若你在安装后手工改过某个字段或文件，
+脚本会跳过它并提示，不会覆盖你的改动。
+
 ---
 
 ## 二、 官方发布新版本后的升级流程
@@ -190,7 +211,38 @@ bash scripts/smoke_test.sh           # 全量冒烟（含 C 线项）
 
 ---
 
-## 五、 常见问题与排查指南
+## 五、 扩展环境懒人包（维护线 D 安装 / E 导出）
+
+### 场景 1：在新机器上装一整套协同环境
+
+1. 克隆仓库，确认 `pi` 已安装（`which pi` / `pi --version`）；
+2. 问清意图：**只要汉化**（走一~四节）还是 **汉化 + 扩展环境**；
+3. 先看计划：`bash scripts/install_bundle.sh --dry-run`；
+4. 计划中出现「冲突」时**停下问人**：手工合并后重跑，还是用 `--force-settings` / `--force-files` 覆盖（覆盖前自动备份）；
+5. 执行：`bash scripts/install_bundle.sh` —— 再依次执行 A / B / C 三条汉化线；
+6. 验收：`bash scripts/install_bundle.sh --status` + `bash scripts/smoke_test.sh`；
+7. 报告：装了什么、跳过什么（及原因）、如何卸载。
+
+### 场景 2：改了自己的扩展 / 协同配置（维护者）
+
+1. 在本机改完并实测生效；
+2. `bash scripts/export_bundle.sh` —— 白名单提取 + 绝对路径校验，打印变更摘要；
+3. `bash scripts/check_bundle.sh` 确认无漂移；
+4. 把 `bundle/manifest.json` 与 `bundle/files/` 一起提交。
+
+### 场景 3：排查「装了扩展但不显示」
+
+```bash
+bash scripts/install_bundle.sh --status     # 逐项对比：哪个配置字段 / 文件 / 扩展不一致
+bash scripts/install_bundle.sh              # 幂等重跑即可补齐（已一致项自动跳过）
+```
+
+常见原因：只拷了扩展文件没写 `powerline.customItems` / `layout`（状态段须在此注册才会显示）；
+或 `pi-powerline-footer` 未安装（自研扩展会退化为 pi 内置 footer 的扩展状态行）。
+
+---
+
+## 六、 常见问题与排查指南
 
 ### 1. 运行 `pi` 提示语法错误 (SyntaxError)
 * **原因**：可能某条翻译中包含了未转义的单双引号。
@@ -237,3 +289,12 @@ bash scripts/smoke_test.sh           # 全量冒烟（含 C 线项）
 ### 9. C 线汉化是否会把插件改坏
 * **不会**。补丁只命中字符串字面量与模板片段，写盘后强制体检（jiti 真实加载 + 渲染行宽断言），任一项失败立即原子回滚；
   体检依赖 pi 自带的 jiti，若命令报「未检测到 node」而跳过体检，应按 `--skip-verify` 的风险处理：仅限离线单测使用。
+
+### 10. 装懒人包时被拒（退出码 2）并列出冲突
+* **原因**：本机已有不同的配置值或同名文件——默认不覆盖（防止弄丢你已有的偏好与自研扩展）。
+* **处置**：先 `bash scripts/install_bundle.sh --dry-run` 看差异；手工合并后重跑（幂等），
+  或确认要覆盖时加 `--force-settings` / `--force-files`（覆盖前会把原文件备份到 `bundle-backup-<时间戳>/`）。
+
+### 11. 卸载后扩展包仍在
+* **原因**：用了 `--keep-packages`，或该包在安装前就已存在（不属本包管理范围）。
+* **处置**：单独移除 `pi remove <spec>`；查看本包装过哪些包：状态指针 `.pi-zh-bundle-state.json` 的 `packages_installed`。

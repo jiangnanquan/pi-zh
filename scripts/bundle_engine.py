@@ -1,0 +1,897 @@
+#!/usr/bin/env python3
+"""
+pi-zh — 扩展环境懒人包引擎（维护线 D 安装 / E 导出）
+
+一句话：把维护者本机「验证过的扩展协同环境」导出为可版本化的声明包（E 线），
+并支持在任何装有 pi 的机器上幂等安装与回滚（D 线）。
+
+与其它维护线的分工：
+  A / B / C 线负责「汉化」；D / E 线负责「扩展协同环境」——
+  扩展清单 + 协同配置 + 自研扩展 + 汉化入口。汉化本体不在此包内，它随 pi-zh 仓库分发。
+
+遵循原则：
+1. SSOT 在本机 `~/.pi/agent`，仓库 `bundle/` 是派生物；**导出单向，永不反向覆盖**。
+2. 白名单提取：只提取「协同必需 / 冲突解决」的字段（`SETTINGS_WHITELIST`），其余一律不碰。
+3. 预检先于写盘：安装前计算完整计划、报告冲突；默认拒绝覆盖用户已有配置，需显式 `--force-*`。
+4. 幂等：重复安装结果一致（相同即跳过）。
+5. 可回滚：安装前备份 settings.json 与将被覆盖的文件，写状态指针，`--uninstall` 精确回滚。
+6. 无绝对路径：导出的文件内容与清单不得含本机绝对路径（红线）。
+"""
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from datetime import datetime
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent
+BUNDLE_DIR = REPO_ROOT / "bundle"
+BUNDLE_FILES_DIR = BUNDLE_DIR / "files"
+MANIFEST_PATH = BUNDLE_DIR / "manifest.json"
+STATE_NAME = ".pi-zh-bundle-state.json"
+BACKUP_PREFIX = "bundle-backup-"
+SCHEMA_VERSION = 1
+
+BUNDLE_NAME = "pi 扩展协同环境"
+BUNDLE_DESCRIPTION = "一套验证过可协同工作的 pi 扩展组合 + 汉化入口（由 pi-zh 维护线 E 从维护者本机导出）"
+
+# ---------------------------------------------------------------------------
+# 包内容定义（判据：非默认值 + 非冲突解决 = 不带）
+# ---------------------------------------------------------------------------
+
+# settings.json 白名单（点路径）：只有「扩展协同必需 / 冲突解决」的字段才进包。
+# 为什么用白名单：pi 以后新增 settings 字段时，黑名单会因漏判而把维护者的个人设置带出去；
+# 白名单只提取明确列出的字段，新增字段自动落在包外。
+SETTINGS_WHITELIST = [
+    "quietStartup",             # 不带则 cc 在 session_start 清空 header、foot 异步填充，重现约 660ms 启动空窗
+    "tuiMode",                  # CC 扩展 fullscreen 交互（单击展开 / hover 高亮 / 回到底部）的前提
+    "powerline.customItems",    # 不带则自研扩展装了也不显示——状态段须在此注册
+    "powerline.layout",         # 状态栏段的排列顺序
+    "powerline.disabledSegments",  # 关掉 powerline 内建段，避免与自研段重复显示
+]
+
+# 整份复制的文件（相对 agent 目录）。已核对：均不含本机绝对路径。
+BUNDLE_FILES = [
+    "claude-code-style.json",
+    "extensions/cache-hit.ts",
+    "extensions/context-bar.ts",
+    "extensions/ds-balance.ts",
+    "extensions/tps-status.ts",
+]
+
+# 显式跳过清单：给目标机器上的 AI 提供「该跳过什么」的判断依据。
+# 这是本项目对「结构性排除」的声明，安装脚本不会去动这些路径。
+SKIP_ENTRIES = [
+    # —— 本机 extensions/ 下存在，但故意不带 ——
+    {"path": "extensions/herdr-agent-state.ts", "reason": "herdr 工具生成（文件头声明 installed by herdr，更新会覆盖），目标机器会自行生成"},
+    {"path": "extensions/otty-integration.ts", "reason": "otty 工具生成，且含本机硬编码路径（/Applications/Otty.app/...）"},
+    {"path": "extensions/plugin-i18n.ts", "reason": "由 B 线机制安装（install_plugin_i18n.sh 建软链），不随包分发"},
+    # —— 结构性排除：数据、缓存、凭据、模型层、个人上下文 ——
+    {"path": "auth.json", "reason": "红线：凭据永不进包"},
+    {"path": "sessions/", "reason": "会话数据"},
+    {"path": "missions/", "reason": "任务数据"},
+    {"path": "npm/", "reason": "由 packages 清单在目标机器重建（维护者本机 21,640 个文件）"},
+    {"path": "bin/", "reason": "平台相关二进制（如 rg）"},
+    {"path": "git/", "reason": "git 包缓存"},
+    {"path": "tmp/", "reason": "临时与个人备份文件"},
+    {"path": "models.json", "reason": "模型层配置（用户明确不带）"},
+    {"path": "models-store.json", "reason": "模型层配置（用户明确不带）"},
+    {"path": "trust.json", "reason": "含本机路径"},
+    {"path": "extension-settings/", "reason": "扩展本地设置"},
+    {"path": "powerline-footer/currency-rates.json", "reason": "汇率缓存"},
+    {"path": "plugin-i18n/", "reason": "B 线字典安装位（仓库内 i18n/plugins.json 才是 SSOT）"},
+    {"path": "APPEND_SYSTEM.md", "reason": "个人注入词（用户明确排除）"},
+    {"path": "AGENTS.md", "reason": "个人 Agent 配置（用户明确排除）"},
+    {"path": "SYSTEM.md", "reason": "个人系统提示词（用户明确排除）"},
+    {"path": "skills/", "reason": "个人 skill（用户明确排除）"},
+    {"path": "backup_*/", "reason": "本机备份目录"},
+    {"path": "*.zh-backup", "reason": "C 线干净基底备份（由 apply_plugin_ui.sh 在目标机器自行生成）"},
+    {"path": "*-snapshots.jsonl", "reason": "个人数据（如 DeepSeek 余额快照）"},
+    {"path": STATE_NAME, "reason": "本引擎安装状态指针（目标机器自行生成）"},
+]
+
+# 包用途说明（人工维护的判断性内容，供目标机器上的 AI 决策参考）
+PACKAGE_NOTES = {
+    "npm:pi-subagents": "多子 agent 编排与并行任务；当前启动成本最高的扩展（实测 +177ms，约占总加载成本 43%）",
+    "npm:@juicesharp/rpiv-todo": "todo 工具（扩展版）",
+    "npm:@juicesharp/rpiv-ask-user-question": "结构化提问工具（ask_user_question）",
+    "npm:pi-deepseek-search": "DeepSeek 联网搜索（需 DeepSeek 凭据；无凭据时仅该工具不可用，不阻塞启动）",
+    "npm:pi-cc-extensions": "Claude Code 风格扩展包（startup header / 全屏交互等）",
+    "npm:cc-safety-net": "命令安全网（危险命令拦截）",
+    "npm:pi-powerline-footer": "底部状态栏 + 欢迎页；4 个自研扩展段与 C 线补丁的宿主",
+}
+
+# 外部依赖声明：不是硬阻断，而是给 AI 的决策依据（装不装、装完要提示用户什么）
+DEPENDENCIES = [
+    {
+        "target": "npm:pi-deepseek-search",
+        "requires": "DeepSeek 凭据（provider=deepseek 或 DEEPSEEK_API_KEY）",
+        "behavior": "无凭据时联网搜索工具不可用；不报启动错误，不影响其它扩展",
+    },
+    {
+        "target": "extensions/ds-balance.ts",
+        "requires": "DeepSeek 凭据（provider=deepseek 或 DEEPSEEK_API_KEY）",
+        "behavior": "扩展自守卫：活动 provider 非 deepseek 或处于非交互模式时不请求余额、不渲染该段",
+    },
+]
+
+# 导出时的绝对路径扫描模式（红线：路径必须参数化）
+ABS_PATH_PATTERNS = [
+    re.compile(r"/Users/[A-Za-z0-9._-]+/"),
+    re.compile(r"/home/[A-Za-z0-9._-]+/"),
+    re.compile(r"/Applications/[^\s\"']+"),
+    re.compile(r"[A-Za-z]:\\\\?Users\\\\"),
+]
+
+_MISSING = object()
+
+
+def log(msg, level="INFO"):
+    colors = {
+        "INFO": "\033[1;34m[INFO]\033[0m",
+        "SUCCESS": "\033[1;32m[OK]\033[0m",
+        "WARN": "\033[1;33m[WARN]\033[0m",
+        "ERROR": "\033[1;31m[ERROR]\033[0m",
+        "STEP": "\033[1;36m>>>\033[0m",
+    }
+    print(f"{colors.get(level, f'[{level}]')} {msg}")
+
+
+# ---------------------------------------------------------------------------
+# 基础工具
+# ---------------------------------------------------------------------------
+
+def resolve_agent_dir(override=None):
+    """定位 pi agent 配置目录（对齐 pi 官方环境变量 PI_CODING_AGENT_DIR）"""
+    if override:
+        return Path(override).expanduser().resolve()
+    env_dir = os.environ.get("PI_CODING_AGENT_DIR")
+    if env_dir:
+        return Path(env_dir).expanduser().resolve()
+    return Path.home() / ".pi" / "agent"
+
+
+def resolve_pi_bin():
+    """定位 pi 可执行文件（测试可用 PI_BIN 注入假命令）"""
+    override = os.environ.get("PI_BIN")
+    if override:
+        return override
+    found = shutil.which("pi")
+    if not found:
+        raise FileNotFoundError("未找到 pi 可执行文件：请确认已全局安装 pi，或用 PI_BIN 指定路径")
+    return found
+
+
+def load_json(path: Path):
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def dump_json(path: Path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+
+
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def deep_get(obj, dotted):
+    cur = obj
+    for part in dotted.split("."):
+        if not isinstance(cur, dict) or part not in cur:
+            return _MISSING
+        cur = cur[part]
+    return cur
+
+
+def deep_set(obj, dotted, value):
+    parts = dotted.split(".")
+    cur = obj
+    for part in parts[:-1]:
+        nxt = cur.get(part)
+        if not isinstance(nxt, dict):
+            nxt = {}
+            cur[part] = nxt
+        cur = nxt
+    cur[parts[-1]] = value
+
+
+def deep_pop(obj, dotted):
+    """删除点路径；父对象因此变空时一并清理空壳，避免留下 `"powerline": {}`"""
+    parts = dotted.split(".")
+    stack = [obj]
+    cur = obj
+    for part in parts[:-1]:
+        nxt = cur.get(part)
+        if not isinstance(nxt, dict):
+            return False
+        cur = nxt
+        stack.append(cur)
+    if parts[-1] not in cur:
+        return False
+    del cur[parts[-1]]
+    for i in range(len(stack) - 1, 0, -1):
+        if not stack[i]:
+            del stack[i - 1][parts[i - 1]]
+        else:
+            break
+    return True
+
+
+def extract_package_specs(settings: dict) -> list:
+    """读取 settings.json 的 packages 数组，兼容字符串与对象两种写法"""
+    specs = []
+    for item in settings.get("packages") or []:
+        if isinstance(item, str):
+            specs.append(item)
+        elif isinstance(item, dict):
+            for key in ("source", "spec", "path", "name"):
+                if isinstance(item.get(key), str):
+                    specs.append(item[key])
+                    break
+    return specs
+
+
+def scan_abs_paths(text: str) -> list:
+    hits = []
+    for pattern in ABS_PATH_PATTERNS:
+        for m in pattern.finditer(text):
+            hits.append(m.group(0))
+    return hits
+
+
+class BundleError(Exception):
+    pass
+
+
+# ---------------------------------------------------------------------------
+# 本机提取（E 线基础）
+# ---------------------------------------------------------------------------
+
+def extract_settings(agent_dir: Path, strict: bool) -> tuple:
+    """按白名单提取 settings.json。返回 (提取结果, 缺失字段列表)"""
+    settings_path = agent_dir / "settings.json"
+    if not settings_path.exists():
+        raise BundleError(f"未找到 {settings_path}")
+    settings = load_json(settings_path)
+
+    extracted, missing = {}, []
+    for dotted in SETTINGS_WHITELIST:
+        val = deep_get(settings, dotted)
+        if val is _MISSING:
+            missing.append(dotted)
+        else:
+            deep_set(extracted, dotted, val)
+
+    if strict and missing:
+        raise BundleError(
+            "维护者本机缺少以下白名单字段，导出中止（说明本机配置被改动，需人工确认）：\n"
+            + "\n".join(f"    - {m}" for m in missing)
+        )
+    return extracted, missing, settings
+
+
+def extract_packages(settings: dict) -> list:
+    return extract_package_specs(settings)
+
+
+def collect_file_entries(agent_dir: Path) -> list:
+    """读取待分发文件的内容与哈希，并做绝对路径红线校验"""
+    entries = []
+    for rel in BUNDLE_FILES:
+        src = agent_dir / rel
+        if not src.exists():
+            raise BundleError(f"待分发文件不存在：{src}")
+        text = src.read_text(encoding="utf-8")
+        hits = scan_abs_paths(text)
+        if hits:
+            raise BundleError(
+                f"{rel} 含本机绝对路径（红线：路径必须参数化）：{', '.join(sorted(set(hits))[:3])}"
+            )
+        entries.append({
+            "path": rel,
+            "bytes": len(text.encode("utf-8")),
+            "sha256": sha256_bytes(text.encode("utf-8")),
+        })
+    return entries
+
+
+def build_manifest(agent_dir: Path) -> dict:
+    settings, _missing, raw = extract_settings(agent_dir, strict=True)
+    packages = extract_packages(raw)
+
+    unknown = [spec for spec in packages if spec not in PACKAGE_NOTES]
+    if unknown:
+        log(f"以下包没有用途说明（PACKAGE_NOTES），已原样导出：{', '.join(unknown)}", "WARN")
+
+    return {
+        "schema": SCHEMA_VERSION,
+        "name": BUNDLE_NAME,
+        "description": BUNDLE_DESCRIPTION,
+        "exported_at": datetime.now().strftime("%Y-%m-%d"),
+        "exported_by": "pi-zh/scripts/export_bundle.sh（E 线：本机白名单提取）",
+        "packages": [{"spec": spec, "note": PACKAGE_NOTES.get(spec, "")} for spec in packages],
+        "settings": settings,
+        "files": collect_file_entries(agent_dir),
+        "skip": SKIP_ENTRIES,
+        "dependencies": DEPENDENCIES,
+    }
+
+
+# ---------------------------------------------------------------------------
+# E 线：导出 / 漂移检测
+# ---------------------------------------------------------------------------
+
+def load_manifest(path=None) -> dict:
+    # 注意：默认参数必须在调用时求值（否则测试/多仓库场景下无法重定向清单路径）
+    target = Path(path) if path else MANIFEST_PATH
+    if not target.exists():
+        raise BundleError(f"未找到清单 {target}：先运行 bash scripts/export_bundle.sh")
+    return load_json(target)
+
+
+def diff_manifest(old: dict, new: dict) -> list:
+    """比较两份清单，返回变化描述行"""
+    lines = []
+
+    old_pkgs = [p["spec"] for p in old.get("packages", [])]
+    new_pkgs = [p["spec"] for p in new.get("packages", [])]
+    for spec in new_pkgs:
+        if spec not in old_pkgs:
+            lines.append(f"+ 包 {spec}")
+    for spec in old_pkgs:
+        if spec not in new_pkgs:
+            lines.append(f"- 包 {spec}")
+
+    old_settings, new_settings = old.get("settings", {}), new.get("settings", {})
+    for dotted in SETTINGS_WHITELIST:
+        o, n = deep_get(old_settings, dotted), deep_get(new_settings, dotted)
+        if o == _MISSING and n == _MISSING:
+            continue
+        if o == _MISSING:
+            lines.append(f"+ 配置 {dotted}")
+        elif n == _MISSING:
+            lines.append(f"- 配置 {dotted}")
+        elif o != n:
+            lines.append(f"~ 配置 {dotted}")
+
+    old_files = {f["path"]: f["sha256"] for f in old.get("files", [])}
+    new_files = {f["path"]: f["sha256"] for f in new.get("files", [])}
+    for path in sorted(set(old_files) | set(new_files)):
+        if path not in old_files:
+            lines.append(f"+ 文件 {path}")
+        elif path not in new_files:
+            lines.append(f"- 文件 {path}")
+        elif old_files[path] != new_files[path]:
+            lines.append(f"~ 文件 {path}")
+
+    return lines
+
+
+def write_bundle(manifest: dict, agent_dir: Path):
+    """把清单与文件写入 bundle/。files/ 完全由脚本管理：整体重建。"""
+    if BUNDLE_FILES_DIR.exists():
+        shutil.rmtree(BUNDLE_FILES_DIR)
+    BUNDLE_FILES_DIR.mkdir(parents=True, exist_ok=True)
+
+    for entry in manifest["files"]:
+        src = agent_dir / entry["path"]
+        dest = BUNDLE_FILES_DIR / entry["path"]
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dest)
+
+    dump_json(MANIFEST_PATH, manifest)
+
+
+def cmd_export(args):
+    agent_dir = resolve_agent_dir(args.agent_dir)
+    log(f"从本机导出：{agent_dir}", "STEP")
+
+    manifest = build_manifest(agent_dir)
+    old = load_json(MANIFEST_PATH) if MANIFEST_PATH.exists() else None
+
+    write_bundle(manifest, agent_dir)
+
+    total_bytes = sum(f["bytes"] for f in manifest["files"])
+    log(f"已写入 {MANIFEST_PATH.relative_to(REPO_ROOT)}（{len(manifest['packages'])} 个包 / "
+        f"{len(manifest['files'])} 个文件 / {total_bytes} 字节）", "SUCCESS")
+
+    if old is None:
+        log("首次导出（无旧清单可比对）", "INFO")
+    else:
+        changes = diff_manifest(old, manifest)
+        if changes:
+            log(f"与上次导出相比有 {len(changes)} 处变化：", "INFO")
+            for line in changes:
+                print(f"      {line}")
+        else:
+            log("与上次导出完全一致（无变化）", "INFO")
+    return 0
+
+
+def cmd_check(args):
+    """漂移检测：本机（SSOT）与 bundle/（派生物）是否一致。不写盘。"""
+    agent_dir = resolve_agent_dir(args.agent_dir)
+    manifest = load_manifest()
+    log(f"比对：{agent_dir}  ⇄  {MANIFEST_PATH.relative_to(REPO_ROOT)}", "STEP")
+
+    problems = []
+
+    # 1. settings 字段
+    extracted, missing, raw = extract_settings(agent_dir, strict=False)
+    for dotted in SETTINGS_WHITELIST:
+        cur = deep_get(extracted, dotted)
+        want = deep_get(manifest["settings"], dotted)
+        if cur is _MISSING and want is _MISSING:
+            continue
+        if cur is _MISSING:
+            problems.append(f"配置 {dotted}：本机缺失（bundle 中有）")
+        elif want is _MISSING:
+            problems.append(f"配置 {dotted}：bundle 缺失（本机有）")
+        elif cur != want:
+            problems.append(f"配置 {dotted}：本机与 bundle 不一致 —— 本机已改但未导出？")
+    if missing:
+        log(f"本机缺失白名单字段（导出会失败）：{', '.join(missing)}", "WARN")
+
+    # 2. packages
+    local_pkgs = extract_packages(raw)
+    bundle_pkgs = [p["spec"] for p in manifest["packages"]]
+    for spec in local_pkgs:
+        if spec not in bundle_pkgs:
+            problems.append(f"包 {spec}：本机有但 bundle 中缺失")
+    for spec in bundle_pkgs:
+        if spec not in local_pkgs:
+            problems.append(f"包 {spec}：bundle 中有但本机已移除")
+
+    # 3. 文件内容
+    bundle_files = {f["path"]: f["sha256"] for f in manifest["files"]}
+    for rel in BUNDLE_FILES:
+        src = agent_dir / rel
+        if not src.exists():
+            problems.append(f"文件 {rel}：本机缺失")
+            continue
+        if rel not in bundle_files:
+            problems.append(f"文件 {rel}：bundle 清单中缺失")
+            continue
+        digest = sha256_bytes(src.read_text(encoding="utf-8").encode("utf-8"))
+        if digest != bundle_files[rel]:
+            problems.append(f"文件 {rel}：本机已改但未导出")
+    for rel in bundle_files:
+        if rel not in BUNDLE_FILES:
+            problems.append(f"文件 {rel}：bundle 中多出（BUNDLE_FILES 已移除？）")
+
+    # 4. 未分类文件提醒
+    ext_dir = agent_dir / "extensions"
+    known = {Path(p).name for p in BUNDLE_FILES if p.startswith("extensions/")}
+    skipped = {Path(e["path"]).name for e in SKIP_ENTRIES if "/" in e["path"] and e["path"].startswith("extensions/")}
+    if ext_dir.is_dir():
+        for f in sorted(ext_dir.iterdir()):
+            if f.name in known or f.name in skipped:
+                continue
+            if f.name.endswith(".zh-backup"):
+                continue
+            if f.name not in {".DS_Store"}:
+                problems.append(f"extensions/{f.name}：既不在分发清单也不在跳过清单（需归类）")
+
+    if not problems:
+        log("bundle 与本机一致，无漂移。", "SUCCESS")
+        return 0
+
+    log(f"检测到 {len(problems)} 处漂移：", "ERROR")
+    for p in problems:
+        print(f"      - {p}")
+    log("处理：确属有意变更 → bash scripts/export_bundle.sh 重新导出", "WARN")
+    return 1
+
+
+# ---------------------------------------------------------------------------
+# D 线：安装
+# ---------------------------------------------------------------------------
+
+def build_install_plan(manifest: dict, agent_dir: Path, skip_packages=False) -> dict:
+    settings_path = agent_dir / "settings.json"
+    current_settings = load_json(settings_path) if settings_path.exists() else {}
+    current_pkgs = set(extract_package_specs(current_settings))
+
+    plan = {"settings": [], "files": [], "packages": []}
+
+    for dotted in SETTINGS_WHITELIST:
+        desired = deep_get(manifest["settings"], dotted)
+        if desired is _MISSING:
+            continue
+        cur = deep_get(current_settings, dotted)
+        if cur is _MISSING:
+            action = "set"
+        elif cur == desired:
+            action = "same"
+        else:
+            action = "conflict"
+        plan["settings"].append({"path": dotted, "action": action, "current": cur, "desired": desired})
+
+    for entry in manifest["files"]:
+        dest = agent_dir / entry["path"]
+        if not dest.exists():
+            action = "copy"
+        elif sha256_file(dest) == entry["sha256"]:
+            action = "same"
+        else:
+            action = "conflict"
+        plan["files"].append({"path": entry["path"], "action": action, "sha256": entry["sha256"]})
+
+    if not skip_packages:
+        for entry in manifest["packages"]:
+            action = "present" if entry["spec"] in current_pkgs else "install"
+            plan["packages"].append({"spec": entry["spec"], "note": entry.get("note", ""), "action": action})
+
+    return plan
+
+
+def print_install_plan(plan: dict):
+    def fmt(v):
+        if v is _MISSING:
+            return "(缺失)"
+        s = json.dumps(v, ensure_ascii=False)
+        return s if len(s) <= 60 else s[:57] + "..."
+
+    log("安装计划：", "STEP")
+    for item in plan["settings"]:
+        label = {"set": "写入", "same": "已一致", "conflict": "冲突"}[item["action"]]
+        detail = f"（当前 {fmt(item['current'])} → 目标 {fmt(item['desired'])}）" if item["action"] != "same" else ""
+        print(f"      配置 {item['path']}: {label} {detail}")
+    for item in plan["files"]:
+        label = {"copy": "落地", "same": "已一致", "conflict": "冲突"}[item["action"]]
+        print(f"      文件 {item['path']}: {label}")
+    for item in plan["packages"]:
+        label = {"install": "安装", "present": "已装"}[item["action"]]
+        print(f"      扩展 {item['spec']}: {label}")
+
+
+def cmd_install(args):
+    agent_dir = resolve_agent_dir(args.agent_dir)
+    manifest = load_manifest()
+    log(f"安装到：{agent_dir}", "STEP")
+
+    if not (agent_dir / "settings.json").exists() and not args.init:
+        log(f"{agent_dir}/settings.json 不存在。若确认要在此目录新建配置，请追加 --init", "ERROR")
+        return 2
+
+    plan = build_install_plan(manifest, agent_dir, skip_packages=args.skip_packages)
+    print_install_plan(plan)
+
+    conflicts = [i for i in plan["settings"] if i["action"] == "conflict"]
+    file_conflicts = [i for i in plan["files"] if i["action"] == "conflict"]
+
+    blocked = False
+    if conflicts and not args.force_settings:
+        log(f"{len(conflicts)} 个配置字段与包内不一致，不能覆盖（未加 --force-settings）：", "ERROR")
+        for c in conflicts:
+            print(f"      {c['path']}: 当前 {json.dumps(c['current'], ensure_ascii=False)}"
+                  f" / 包内 {json.dumps(c['desired'], ensure_ascii=False)}")
+        blocked = True
+    if file_conflicts and not args.force_files:
+        log(f"{len(file_conflicts)} 个文件与包内不一致，不能覆盖（未加 --force-files）：", "ERROR")
+        for c in file_conflicts:
+            print(f"      {c['path']}")
+        blocked = True
+    if blocked:
+        log("处理：手工合并后重跑（幂等），或确认要覆盖时追加对应 --force-* 参数", "WARN")
+        return 2
+
+    if args.dry_run:
+        log("dry-run：未写盘。", "INFO")
+        return 0
+
+    settings_path = agent_dir / "settings.json"
+
+    # 已完全一致时不做任何变更：尤其不能重写状态指针，否则卸载将丢失原始备份信息
+    effective = (any(i["action"] in ("set", "conflict") for i in plan["settings"])
+                 or any(i["action"] != "same" for i in plan["files"])
+                 or any(i["action"] == "install" for i in plan["packages"]))
+    if not effective:
+        log("已是目标状态，无实际变更（保留原有安装状态指针）。", "SUCCESS")
+        return 0
+
+    # ---- 备份（增量安装复用首次备份目录：它记录「本包安装前」的原始状态）----
+    state_path = agent_dir / STATE_NAME
+    old_state = load_json(state_path) if state_path.exists() else {}
+    old_backup = old_state.get("backup_dir")
+    if old_backup and (agent_dir / old_backup).is_dir():
+        backup_dir = agent_dir / old_backup
+    else:
+        backup_dir = agent_dir / f"{BACKUP_PREFIX}{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        if settings_path.exists():
+            shutil.copy2(settings_path, backup_dir / "settings.json")
+
+    # ---- 状态汇总：settings_before 以首次安装为准，绝不覆盖 ----
+    settings_before = dict(old_state.get("settings_before", {}))
+    for item in plan["settings"]:
+        if item["path"] not in settings_before:
+            settings_before[item["path"]] = "absent" if item["current"] is _MISSING else item["current"]
+
+    settings_written = dict(old_state.get("settings_written", {}))
+    for item in plan["settings"]:
+        settings_written[item["path"]] = item["desired"]
+
+    files_by_path = {f["path"]: f for f in old_state.get("files", [])}
+
+    # ---- 写配置（只改白名单字段）----
+    settings = load_json(settings_path) if settings_path.exists() else {}
+    for item in plan["settings"]:
+        if item["action"] in ("set", "conflict"):
+            deep_set(settings, item["path"], item["desired"])
+    dump_json(settings_path, settings)
+    log(f"已写入 {len(settings_written)} 个配置字段（其余字段未触碰）", "SUCCESS")
+
+    # ---- 落地文件 ----
+    for item in plan["files"]:
+        dest = agent_dir / item["path"]
+        if item["action"] == "same":
+            continue
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if item["action"] == "conflict":
+            backup_dest = backup_dir / "files" / item["path"]
+            if not backup_dest.exists():
+                backup_dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(dest, backup_dest)
+            files_by_path[item["path"]] = {
+                "path": item["path"], "action": "overwritten", "sha256": item["sha256"],
+                "backup": str(backup_dest.relative_to(backup_dir)),
+            }
+        elif item["path"] in files_by_path:
+            files_by_path[item["path"]]["sha256"] = item["sha256"]
+        else:
+            files_by_path[item["path"]] = {"path": item["path"], "action": "created", "sha256": item["sha256"]}
+        shutil.copy2(BUNDLE_FILES_DIR / item["path"], dest)
+    log(f"已落地 {sum(1 for i in plan['files'] if i['action'] != 'same')} 个文件", "SUCCESS")
+
+    # ---- 安装扩展包（pi install 会同步写 settings.json 的 packages）----
+    installed, failed = [], []
+    for item in plan["packages"]:
+        if item["action"] == "present":
+            continue
+        log(f"安装扩展 {item['spec']} ...", "STEP")
+        try:
+            run_pi_install(item["spec"], agent_dir)
+            installed.append(item["spec"])
+        except subprocess.CalledProcessError as e:
+            failed.append(item["spec"])
+            log(f"扩展 {item['spec']} 安装失败（退出码 {e.returncode}），可稍后重跑安装", "ERROR")
+    if installed:
+        log(f"已安装 {len(installed)} 个扩展：{', '.join(installed)}", "SUCCESS")
+    if failed:
+        log(f"{len(failed)} 个扩展安装失败，其余配置已生效；修复网络后重跑即可（幂等）", "WARN")
+
+    # ---- 状态指针（累积合并：首次安装前的原始状态是回滚基准）----
+    state = {
+        "schema": SCHEMA_VERSION,
+        "installed_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+        "first_installed_at": old_state.get("first_installed_at") or datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+        "bundle_exported_at": manifest.get("exported_at", ""),
+        "backup_dir": backup_dir.name,
+        "settings_before": settings_before,
+        "settings_written": settings_written,
+        "files": sorted(files_by_path.values(), key=lambda f: f["path"]),
+        "packages_installed": sorted(set(old_state.get("packages_installed", [])) | set(installed)),
+        "packages_preexisting": sorted(set(old_state.get("packages_preexisting", []))
+                                       | {p["spec"] for p in plan["packages"] if p["action"] == "present"}),
+    }
+    dump_json(state_path, state)
+    log(f"安装状态已记录：{state_path}", "INFO")
+
+    log("安装完成。", "SUCCESS")
+    log("下一步：执行汉化（bash scripts/apply_patch.sh / install_plugin_i18n.sh / apply_plugin_ui.sh）", "INFO")
+    log("卸载：bash scripts/install_bundle.sh --uninstall", "INFO")
+    return 0
+
+
+def run_pi_install(spec, agent_dir):
+    env = os.environ.copy()
+    env["PI_CODING_AGENT_DIR"] = str(agent_dir)
+    subprocess.run(
+        [resolve_pi_bin(), "install", spec],
+        env=env, check=True, capture_output=True, text=True,
+    )
+
+
+def run_pi_remove(spec, agent_dir):
+    env = os.environ.copy()
+    env["PI_CODING_AGENT_DIR"] = str(agent_dir)
+    subprocess.run(
+        [resolve_pi_bin(), "remove", spec],
+        env=env, check=True, capture_output=True, text=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# D 线：状态 / 卸载
+# ---------------------------------------------------------------------------
+
+def load_state(agent_dir: Path, restore_from=None) -> dict:
+    if restore_from:
+        path = Path(restore_from).expanduser()
+        state_path = path / "state.json" if path.is_dir() else path
+        if not state_path.exists():
+            raise BundleError(f"未找到状态文件：{state_path}")
+        return load_json(state_path)
+    path = agent_dir / STATE_NAME
+    if not path.exists():
+        raise BundleError(f"未找到安装状态 {path}：本机未通过本引擎安装过，或状态指针已被删除")
+    return load_json(path)
+
+
+def cmd_status(args):
+    agent_dir = resolve_agent_dir(args.agent_dir)
+    manifest = load_manifest()
+    log(f"检查：{agent_dir}", "STEP")
+
+    try:
+        state = load_state(agent_dir, args.restore_from)
+        log(f"安装于 {state.get('installed_at', '?')}，备份目录 {state.get('backup_dir', '?')}", "INFO")
+    except BundleError as e:
+        log(str(e), "WARN")
+        state = None
+
+    plan = build_install_plan(manifest, agent_dir, skip_packages=args.skip_packages)
+    missing = [i for i in plan["settings"] if i["action"] != "same"]
+    file_diff = [i for i in plan["files"] if i["action"] != "same"]
+    pkg_missing = [i for i in plan["packages"] if i["action"] == "install"]
+
+    if not missing and not file_diff and not pkg_missing:
+        log("与本包清单完全一致：配置、文件、扩展均已就位。", "SUCCESS")
+        return 0
+
+    if missing:
+        log(f"{len(missing)} 个配置字段与包内不一致：", "WARN")
+        for i in missing:
+            print(f"      {i['path']}: {i['action']}")
+    if file_diff:
+        log(f"{len(file_diff)} 个文件与包内不一致：", "WARN")
+        for i in file_diff:
+            print(f"      {i['path']}: {i['action']}")
+    if pkg_missing:
+        log(f"{len(pkg_missing)} 个扩展未安装：", "WARN")
+        for i in pkg_missing:
+            print(f"      {i['spec']}")
+    return 0
+
+
+def cmd_uninstall(args):
+    agent_dir = resolve_agent_dir(args.agent_dir)
+    state = load_state(agent_dir, args.restore_from)
+    backup_dir = agent_dir / state.get("backup_dir", "")
+    log(f"回滚最近一次安装（{state.get('installed_at', '?')}，备份 {backup_dir.name or '?'}）", "STEP")
+
+    if args.dry_run:
+        log("dry-run：未写盘。", "INFO")
+        return 0
+
+    # ---- 配置字段：只回滚「当前仍是我们写入的值」的字段 ----
+    settings_path = agent_dir / "settings.json"
+    settings = load_json(settings_path) if settings_path.exists() else {}
+    restored, skipped = [], []
+    for dotted, written in state.get("settings_written", {}).items():
+        cur = deep_get(settings, dotted)
+        if cur is _MISSING:
+            skipped.append(f"{dotted}（当前缺失，未回滚）")
+            continue
+        if cur != written:
+            skipped.append(f"{dotted}（已被手工修改，保留现值）")
+            continue
+        before = state.get("settings_before", {}).get(dotted, "absent")
+        if before == "absent":
+            deep_pop(settings, dotted)
+        else:
+            deep_set(settings, dotted, before)
+        restored.append(dotted)
+    dump_json(settings_path, settings)
+    if restored:
+        log(f"已回滚 {len(restored)} 个配置字段：{', '.join(restored)}", "SUCCESS")
+    for s in skipped:
+        log(f"跳过配置 {s}", "WARN")
+
+    # ---- 文件：created 删除 / overwritten 从备份恢复；已被改动手工改动的不动 ----
+    for f in state.get("files", []):
+        dest = agent_dir / f["path"]
+        if not dest.exists():
+            continue
+        unchanged = sha256_file(dest) == f.get("sha256", "")
+        if not unchanged:
+            log(f"跳过文件 {f['path']}（已被手工修改，不覆盖）", "WARN")
+            continue
+        if f["action"] == "created":
+            dest.unlink()
+            log(f"已删除 {f['path']}", "SUCCESS")
+        elif f["action"] == "overwritten":
+            src = backup_dir / f.get("backup", "")
+            if src.exists():
+                shutil.copy2(src, dest)
+                log(f"已还原 {f['path']}（取自备份）", "SUCCESS")
+            else:
+                log(f"备份缺失，未还原 {f['path']}：{src}", "WARN")
+
+    # ---- 扩展包 ----
+    installed = state.get("packages_installed", [])
+    if installed and not args.keep_packages:
+        for spec in installed:
+            try:
+                run_pi_remove(spec, agent_dir)
+                log(f"已移除扩展 {spec}", "SUCCESS")
+            except subprocess.CalledProcessError as e:
+                log(f"扩展 {spec} 移除失败（退出码 {e.returncode}），可手工执行 pi remove {spec}", "WARN")
+    elif installed:
+        log(f"按 --keep-packages 保留 {len(installed)} 个扩展：{', '.join(installed)}", "INFO")
+
+    # ---- 状态指针 ----
+    state_path = agent_dir / STATE_NAME
+    if state_path.exists():
+        state_path.unlink()
+    log("已删除安装状态指针。备份目录保留，可用于复查：" + str(backup_dir), "INFO")
+    log("卸载完成。", "SUCCESS")
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def main():
+    parser = argparse.ArgumentParser(description="pi-zh 扩展环境懒人包引擎（维护线 D 安装 / E 导出）")
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--export", action="store_true", help="E 线：本机 → bundle/（白名单提取，单向）")
+    group.add_argument("--check", action="store_true", help="E 线：漂移检测（本机 SSOT ⇄ bundle/ 派生物，不写盘）")
+    group.add_argument("--install", action="store_true", help="D 线：从 bundle/ 安装（幂等，预检先于写盘）")
+    group.add_argument("--uninstall", action="store_true", help="D 线：回滚最近一次安装")
+    group.add_argument("--status", action="store_true", help="D 线：查看安装状态与一致性")
+
+    parser.add_argument("--agent-dir", type=str, default=None,
+                        help="pi agent 目录（默认 ~/.pi/agent，或环境变量 PI_CODING_AGENT_DIR）")
+    parser.add_argument("--dry-run", action="store_true", help="仅模拟，不写盘")
+    parser.add_argument("--init", action="store_true", help="允许在 settings.json 不存在的目录新建配置")
+    parser.add_argument("--force-settings", action="store_true", help="允许覆盖与包内不一致的已有配置字段")
+    parser.add_argument("--force-files", action="store_true", help="允许覆盖与包内不一致的已有文件（先备份）")
+    parser.add_argument("--skip-packages", action="store_true", help="跳过扩展包安装，只写配置与文件")
+    parser.add_argument("--keep-packages", action="store_true", help="卸载时保留扩展包，只回滚配置与文件")
+    parser.add_argument("--restore-from", type=str, default=None,
+                        help="状态指针丢失时，指定备份目录（含 state.json）用于回滚")
+    args = parser.parse_args()
+
+    try:
+        if args.export:
+            return cmd_export(args)
+        if args.check:
+            return cmd_check(args)
+        if args.install:
+            return cmd_install(args)
+        if args.uninstall:
+            return cmd_uninstall(args)
+        if args.status:
+            return cmd_status(args)
+    except BundleError as e:
+        log(str(e), "ERROR")
+        return 1
+    except FileNotFoundError as e:
+        log(str(e), "ERROR")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

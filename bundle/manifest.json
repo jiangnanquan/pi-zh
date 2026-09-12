@@ -1,0 +1,228 @@
+{
+  "schema": 1,
+  "name": "pi 扩展协同环境",
+  "description": "一套验证过可协同工作的 pi 扩展组合 + 汉化入口（由 pi-zh 维护线 E 从维护者本机导出）",
+  "exported_at": "2026-09-13",
+  "exported_by": "pi-zh/scripts/export_bundle.sh（E 线：本机白名单提取）",
+  "packages": [
+    {
+      "spec": "npm:pi-subagents",
+      "note": "多子 agent 编排与并行任务；当前启动成本最高的扩展（实测 +177ms，约占总加载成本 43%）"
+    },
+    {
+      "spec": "npm:@juicesharp/rpiv-todo",
+      "note": "todo 工具（扩展版）"
+    },
+    {
+      "spec": "npm:@juicesharp/rpiv-ask-user-question",
+      "note": "结构化提问工具（ask_user_question）"
+    },
+    {
+      "spec": "npm:pi-deepseek-search",
+      "note": "DeepSeek 联网搜索（需 DeepSeek 凭据；无凭据时仅该工具不可用，不阻塞启动）"
+    },
+    {
+      "spec": "npm:pi-cc-extensions",
+      "note": "Claude Code 风格扩展包（startup header / 全屏交互等）"
+    },
+    {
+      "spec": "npm:cc-safety-net",
+      "note": "命令安全网（危险命令拦截）"
+    },
+    {
+      "spec": "npm:pi-powerline-footer",
+      "note": "底部状态栏 + 欢迎页；4 个自研扩展段与 C 线补丁的宿主"
+    }
+  ],
+  "settings": {
+    "quietStartup": true,
+    "tuiMode": "fullscreen",
+    "powerline": {
+      "customItems": [
+        {
+          "id": "context-bar",
+          "statusKey": "context-bar",
+          "position": "left",
+          "selfColorize": true
+        },
+        {
+          "id": "tps",
+          "statusKey": "tps",
+          "position": "right",
+          "prefix": "⚡",
+          "color": "accent"
+        },
+        {
+          "id": "cache-hit",
+          "statusKey": "cache-hit",
+          "position": "right",
+          "selfColorize": true
+        },
+        {
+          "id": "ds-balance",
+          "statusKey": "ds-balance",
+          "position": "right",
+          "selfColorize": true
+        }
+      ],
+      "layout": {
+        "left": [
+          "path",
+          "git",
+          "model",
+          "thinking",
+          "shell_mode",
+          "custom:context-bar",
+          "cost",
+          "custom:ds-balance"
+        ],
+        "right": [
+          "custom:cache-hit",
+          "custom:tps",
+          "queue"
+        ]
+      },
+      "disabledSegments": [
+        "context_pct",
+        "cache_read"
+      ]
+    }
+  },
+  "files": [
+    {
+      "path": "claude-code-style.json",
+      "bytes": 33,
+      "sha256": "f055f3c459a64d804c7613a6ea7c18f38bede28ebd6e03a85e3f8af3a33f3bad"
+    },
+    {
+      "path": "extensions/cache-hit.ts",
+      "bytes": 12073,
+      "sha256": "7d6ed003dbdde683989800d086eb1844f5e03833c1d6f449237f5f27fa417984"
+    },
+    {
+      "path": "extensions/context-bar.ts",
+      "bytes": 6593,
+      "sha256": "cb7937e2e3ea2dfccd9274e11737935933b98690b2bf66ed1a95a5c13122487c"
+    },
+    {
+      "path": "extensions/ds-balance.ts",
+      "bytes": 11892,
+      "sha256": "b94b09870ac697239f11a9a63fa82acf65c996457e807602c15e53bfc5b4da8e"
+    },
+    {
+      "path": "extensions/tps-status.ts",
+      "bytes": 4604,
+      "sha256": "dc30c9e81b011ba8a04ed6acad5df1397b699e991d46f7bdbbd64c36abdc8647"
+    }
+  ],
+  "skip": [
+    {
+      "path": "extensions/herdr-agent-state.ts",
+      "reason": "herdr 工具生成（文件头声明 installed by herdr，更新会覆盖），目标机器会自行生成"
+    },
+    {
+      "path": "extensions/otty-integration.ts",
+      "reason": "otty 工具生成，且含本机硬编码路径（/Applications/Otty.app/...）"
+    },
+    {
+      "path": "extensions/plugin-i18n.ts",
+      "reason": "由 B 线机制安装（install_plugin_i18n.sh 建软链），不随包分发"
+    },
+    {
+      "path": "auth.json",
+      "reason": "红线：凭据永不进包"
+    },
+    {
+      "path": "sessions/",
+      "reason": "会话数据"
+    },
+    {
+      "path": "missions/",
+      "reason": "任务数据"
+    },
+    {
+      "path": "npm/",
+      "reason": "由 packages 清单在目标机器重建（维护者本机 21,640 个文件）"
+    },
+    {
+      "path": "bin/",
+      "reason": "平台相关二进制（如 rg）"
+    },
+    {
+      "path": "git/",
+      "reason": "git 包缓存"
+    },
+    {
+      "path": "tmp/",
+      "reason": "临时与个人备份文件"
+    },
+    {
+      "path": "models.json",
+      "reason": "模型层配置（用户明确不带）"
+    },
+    {
+      "path": "models-store.json",
+      "reason": "模型层配置（用户明确不带）"
+    },
+    {
+      "path": "trust.json",
+      "reason": "含本机路径"
+    },
+    {
+      "path": "extension-settings/",
+      "reason": "扩展本地设置"
+    },
+    {
+      "path": "powerline-footer/currency-rates.json",
+      "reason": "汇率缓存"
+    },
+    {
+      "path": "plugin-i18n/",
+      "reason": "B 线字典安装位（仓库内 i18n/plugins.json 才是 SSOT）"
+    },
+    {
+      "path": "APPEND_SYSTEM.md",
+      "reason": "个人注入词（用户明确排除）"
+    },
+    {
+      "path": "AGENTS.md",
+      "reason": "个人 Agent 配置（用户明确排除）"
+    },
+    {
+      "path": "SYSTEM.md",
+      "reason": "个人系统提示词（用户明确排除）"
+    },
+    {
+      "path": "skills/",
+      "reason": "个人 skill（用户明确排除）"
+    },
+    {
+      "path": "backup_*/",
+      "reason": "本机备份目录"
+    },
+    {
+      "path": "*.zh-backup",
+      "reason": "C 线干净基底备份（由 apply_plugin_ui.sh 在目标机器自行生成）"
+    },
+    {
+      "path": "*-snapshots.jsonl",
+      "reason": "个人数据（如 DeepSeek 余额快照）"
+    },
+    {
+      "path": ".pi-zh-bundle-state.json",
+      "reason": "本引擎安装状态指针（目标机器自行生成）"
+    }
+  ],
+  "dependencies": [
+    {
+      "target": "npm:pi-deepseek-search",
+      "requires": "DeepSeek 凭据（provider=deepseek 或 DEEPSEEK_API_KEY）",
+      "behavior": "无凭据时联网搜索工具不可用；不报启动错误，不影响其它扩展"
+    },
+    {
+      "target": "extensions/ds-balance.ts",
+      "requires": "DeepSeek 凭据（provider=deepseek 或 DEEPSEEK_API_KEY）",
+      "behavior": "扩展自守卫：活动 provider 非 deepseek 或处于非交互模式时不请求余额、不渲染该段"
+    }
+  ]
+}

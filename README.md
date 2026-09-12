@@ -6,6 +6,7 @@
 
 > 一个面向 [Pi Agent](https://github.com/badlogic/pi-mono)（`@earendil-works/pi-coding-agent`）的高品质 CLI/TUI 简体中文汉化补丁。
 > **命令名称 100% 保持英文原文**，仅汉化命令注释、参数提示、设置菜单、状态栏与快捷键说明，绝不破坏键盘肌肉记忆与脚本自动化。
+> 另附「扩展协同环境懒人包」：一份声明（扩展清单 + 协同必需配置 + 4 个自研扩展），让装好的扩展不打架。
 
 ---
 
@@ -76,7 +77,6 @@ bash scripts/apply_plugin_ui.sh --restore
 ```
 
 覆盖 `pi-powerline-footer` 的启动欢迎页（`welcome.ts`）：提示语、已加载计数、最近会话与相对时间的文案。重启 pi 后生效。
-
 同一条维护线还含**三条用户授权行为补丁**（均带 `id` / `reason` / `authorized_on` 与回退分支）：
 
 1. `editor-chrome-thinking-border` —— powerline 重画的 editor 上下边框原本硬编码 ANSI 244 灰，盖掉了 pi 本体随
@@ -90,6 +90,31 @@ bash scripts/apply_plugin_ui.sh --restore
 ```bash
 python3 scripts/probe_editor_border.py   # 边框色：未打补丁 editor 宽 紫 2 / 灰 4；已打补丁 紫 6 / 灰 0
 python3 scripts/probe_dock_rows.py       # dock 行数：未打补丁状态行后还有空壳占位行；已打补丁状态行即最后一行
+```
+
+### 6. 扩展协同环境懒人包（可选，新机器友好）
+
+分发一套**装完就能协同工作**的扩展组合（不是复制个人配置）：扩展清单 + 协同必需配置 + 4 个自研扩展。
+人类可读说明见 [`bundle/README.md`](bundle/README.md)。
+
+```bash
+# 先看计划（不写盘）：逐项列出配置 / 文件 / 扩展将做什么
+bash scripts/install_bundle.sh --dry-run
+
+# 安装（幂等，可重复执行；冲突时退出码 2 并列出差异，默认不覆盖你已有的配置）
+bash scripts/install_bundle.sh
+
+# 状态 / 回滚
+bash scripts/install_bundle.sh --status
+bash scripts/install_bundle.sh --uninstall                 # 含本包装过的扩展
+bash scripts/install_bundle.sh --uninstall --keep-packages # 只回滚配置与文件
+```
+
+维护者侧（单向：本机是 SSOT，`bundle/` 是派生物）：
+
+```bash
+bash scripts/export_bundle.sh    # 从本机重新导出，打印变更摘要
+bash scripts/check_bundle.sh     # 漂移检测：本机改了但没导出？
 ```
 
 ---
@@ -161,12 +186,21 @@ pi-zh/
 │   ├── verify_plugin_ts.mjs     # 插件 TS 体检器（jiti 加载 + 渲染行宽断言）
 │   ├── probe_editor_border.py   # 行为补丁探针（pty 真启 pi，统计紫/灰边框行）
 │   ├── probe_dock_rows.py       # dock 行数探针（pty 解码最终帧，断言状态行占满 footer 槽位）
+│   ├── export_bundle.sh         # 懒人包导出入口（E 线：本机 → bundle/，单向）
+│   ├── check_bundle.sh          # 懒人包漂移检测（E 线：不写盘）
+│   ├── install_bundle.sh        # 懒人包安装 / 状态 / 卸载入口（D 线）
+│   ├── bundle_engine.py         # 懒人包引擎（白名单提取、预检、精确回滚）
 │   └── smoke_test.sh            # 一键冒烟测试脚本（五项）
+├── bundle/                      # 扩展环境声明（由 E 线从维护者本机导出的派生物）
+│   ├── manifest.json            # 机器生成的清单：packages / settings / files / skip / dependencies
+│   ├── README.md                # 使用者视角说明（依赖、手动安装、卸载）
+│   └── files/                   # 随包分发的实体文件（claude-code-style.json + 4 个自研扩展）
 └── tests/
     ├── test_patch.py            # CLI 汉化的单元测试与红线隔离测试
     ├── test_plugin_i18n.py      # 插件字典契约与扫描器测试
     ├── test_plugin_i18n.mjs     # 运行时覆盖扩展的端到端契约测试
-    └── test_plugin_ui.py        # 插件 UI 汉化：幂等、干净基底与还原测试
+    ├── test_plugin_ui.py        # 插件 UI 汉化：幂等、干净基底与还原测试
+    └── test_bundle.py           # 懒人包：白名单提取、冲突拦截、幂等、精确回滚测试
 ```
 
 ---
@@ -183,6 +217,9 @@ pi-zh/
 | **渲染文案补丁限界** | 文案补丁只能进 `replacements`，禁止改布局宽度、函数逻辑与导出签名 | 保证汉化不改变插件行为，且能被 jiti 体检与一键还原兜住 |
 | **行为补丁必须授权** | 行为改动只能进 `code_patches`，且必须带 `id`/`reason`/`authorized_on` 与回退分支 | 改动可审计、可回滚，上游重构时能被未命中检测及时暴露 |
 | **C 线禁止裸单词替换** | 短词必须用 `literal` 模式锁定在引号内 | 避免 `Tips` / `Loaded` 这类短词误伤同名标识符 |
+| **懒人包不夹带个人上下文** | 只提取白名单字段与声明文件；凭据、会话、个人 skill / Agent / 注入词永不进包 | 防止个人数据泄漏与环境污染 |
+| **导出单向** | 永不从 `bundle/` 反向覆盖本机 `~/.pi/agent` | 避免派生物污染 SSOT |
+| **安装先预检** | 冲突默认拒绝，覆盖必须显式 `--force-*` | 避免弄丢用户已有配置与自研扩展 |
 
 ---
 
