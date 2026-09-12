@@ -10,6 +10,7 @@
 2. **命令原名绝对锁定**：命令名称（`name`）与命令行参数（flags）是用户交互与自动化脚本的硬契约，**严禁汉化为中文**。仅汉化说明（`description`）与参数占位提示（`argumentHint`）。
 3. **单一事实来源**：所有的翻译事实必须维护在 `i18n/*.json` 中，脚本中不得硬编码临时补丁文本。
 4. **版本跟随**：官方发布新版后，以升级官方包为先导，更新 `patch_engine.py` 中的适配版本号并增量补齐未翻译条目。
+5. **插件零侵入**：第三方插件的界面文本（斜杠命令简介）一律走「运行时覆盖 + `i18n/plugins.json` 字典映射」，严禁改写 `~/.pi/agent/npm/node_modules` 内的任何插件文件。
 
 ---
 
@@ -23,6 +24,8 @@
 | **污染代码标识符** | 误把变量 `defaultProjectTrust` 替换为 `defaultProject信任` | 单独单词必须通过正则限定在引号 `(["'`])` 包裹内进行字面量匹配 |
 | **覆盖干净基底** | 重复打补丁时覆盖了原有的 `.zh-backup` | 若已存在 `.zh-backup`，绝不可重新覆盖，必须以备份为读取源 |
 | **破坏版本号** | 将 `pi --version` 改为 `pi-zh 1.0` | 严格保留官方原始版本（如 `0.85.1`） |
+| **改写插件源码** | 直接编辑 `node_modules` 里的插件 `description` | 插件简介汉化只允许运行时覆盖，插件升级不得导致汉化失效 |
+| **越界翻译** | 把插件 `registerTool` 的工具描述或 skill 描述也译了 | 工具描述会进模型请求 payload，按单一职责红线一律不碰 |
 
 ---
 
@@ -30,11 +33,12 @@
 
 只有满足以下全部验收项，一次针对 `pi-zh` 的维护或升级才被判定为合格交付：
 
-1. `python3 tests/test_patch.py` 单元测试全部通过。
-2. `bash scripts/apply_patch.sh` 执行无报错，补丁成功应用。
-3. `bash scripts/smoke_test.sh` 冒烟测试全部通过：
+1. `python3 tests/test_patch.py`、`python3 tests/test_plugin_i18n.py`、`node tests/test_plugin_i18n.mjs` 单元测试全部通过。
+2. `bash scripts/apply_patch.sh` 执行无报错，补丁成功应用（引擎自带的 `node --check` 语法树校验通过，无 `SyntaxError`）。
+3. `bash scripts/smoke_test.sh` 四个 TEST 全部通过：
    - `pi --version` 正常输出官方版本；
    - `pi --help` 正常展示中文说明与中文参数；
-   - 语法树校验通过（无 `SyntaxError` 报错）。
-4. `bash scripts/apply_patch.sh --restore` 能够成功一键还原回官方原版，且再次运行 `pi --help` 为英文。
+   - 插件简介字典与已装插件无新增 / 漂移 / 残留差异；
+   - 插件简介运行时覆盖扩展的端到端契约测试通过。
+4. 一键还原可用：`bash scripts/apply_patch.sh --restore` 能还原官方原版（`pi --help` 恢复英文），`bash scripts/install_plugin_i18n.sh --uninstall` 能卸载插件汉化。
 5. 代码与配置中无敏感凭据、个人路径或测试脏文件残留。

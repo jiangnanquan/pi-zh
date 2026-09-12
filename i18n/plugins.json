@@ -1,0 +1,184 @@
+{
+  "_meta": {
+    "purpose": "第三方插件斜杠命令简介汉化表（运行时覆盖，不修改任何插件源码）",
+    "policy": "命令名与参数原名严格保留英文，仅汉化 / 补全面板第二列的简介正文；来源标签 [u:npm:xxx] 原样保留",
+    "maintenance": "插件升级后先跑 python3 scripts/scan_plugin_commands.py --check 看差异，汉化新条目或跑 --update-baseline 刷新 en 原文基线"
+  },
+  "commands": {
+    "deepseek-tools-status": {
+      "source": "@bacnh85/pi-deepseek-tools",
+      "en": "Show pi-deepseek-tools configuration and statistics.",
+      "zh": "查看 pi-deepseek-tools 配置与统计信息"
+    },
+    "todos": {
+      "source": "@juicesharp/rpiv-todo",
+      "en": "Show all todos on the current branch, grouped by status",
+      "zh": "查看当前分支的全部待办（按状态分组）"
+    },
+    "cc-safety-net": {
+      "source": "cc-safety-net",
+      "en": "Operate CC Safety Net: explain blocks, rules, integrations, diagnostics",
+      "zh": "操作 CC Safety Net：拦截说明、规则、集成与诊断"
+    },
+    "ccstyle": {
+      "source": "pi-cc-extensions",
+      "en": "Configure Claude Code style and rich diff options",
+      "zh": "配置 Claude Code 风格与富 diff 选项"
+    },
+    "clear": {
+      "source": "pi-cc-extensions",
+      "en": "→ /new · Start a new session",
+      "zh": "→ /new · 开始新会话"
+    },
+    "context": {
+      "source": "pi-cc-extensions",
+      "en": "Show the current context-window distribution",
+      "zh": "查看当前上下文窗口占用分布"
+    },
+    "exit": {
+      "source": "pi-cc-extensions",
+      "en": "→ /quit · Exit pi",
+      "zh": "→ /quit · 退出 pi"
+    },
+    "bash-mode": {
+      "source": "pi-powerline-footer",
+      "en": "Toggle sticky bash mode (on, off, toggle)",
+      "zh": "切换粘性 bash 模式（on / off / toggle）"
+    },
+    "bash-reset": {
+      "source": "pi-powerline-footer",
+      "en": "Reset the managed bash session",
+      "zh": "重置受管的 bash 会话"
+    },
+    "cd": {
+      "source": "pi-powerline-footer",
+      "en": "Switch the Pi session working directory",
+      "zh": "切换 Pi 会话工作目录"
+    },
+    "powerline": {
+      "source": "pi-powerline-footer",
+      "en": "Configure powerline status (toggle, preset)",
+      "zh": "配置 powerline 状态栏（开关、预设）"
+    },
+    "powerline-perf": {
+      "source": "pi-powerline-footer",
+      "en": "Show or reset opt-in editor performance profiling",
+      "zh": "查看或重置编辑器性能分析（需手动开启）"
+    },
+    "queue": {
+      "source": "pi-powerline-footer",
+      "en": "Manage Powerline queued prompts and project aliases",
+      "zh": "管理 Powerline 排队提示词与项目别名"
+    },
+    "reply": {
+      "source": "pi-powerline-footer",
+      "en": "Quote a previous user or assistant message into the editor",
+      "zh": "把此前的用户或助手消息引用到编辑器"
+    },
+    "stash-history": {
+      "source": "pi-powerline-footer",
+      "en": "Open prompt history picker",
+      "zh": "打开提示词历史选择器"
+    },
+    "vibe": {
+      "source": "pi-powerline-footer",
+      "en": "Set working message theme. Usage: /vibe [theme|off|mode|model|generate]",
+      "zh": "设置工作提示语主题。用法: /vibe [theme|off|mode|model|generate]"
+    },
+    "prompt-workflow": {
+      "source": "pi-subagents",
+      "en": "Run a prompt template through native pi-subagents: /prompt-workflow <name> [args]",
+      "zh": "用原生 pi-subagents 运行提示词模板：/prompt-workflow <name> [args]"
+    },
+    "run": {
+      "source": "pi-subagents",
+      "en": "Run one subagent through workflowScript: /run agent[output=file] [task] [--bg] [--fork]",
+      "zh": "用 workflowScript 运行单个子代理：/run agent[output=file] [task] [--bg] [--fork]"
+    },
+    "subagent-cost": {
+      "source": "pi-subagents",
+      "en": "Show parent and subagent child usage cost for this session",
+      "zh": "查看本会话主代理与子代理的用量开销"
+    },
+    "subagents": {
+      "source": "pi-subagents",
+      "en": "Administer subagents: inspect metadata and update models, thinking, or prompts",
+      "zh": "管理子代理：查看元数据并更新模型、思考级别与提示词"
+    },
+    "subagents-check-profile": {
+      "source": "pi-subagents",
+      "en": "Check whether a saved profile still points to usable models",
+      "zh": "检查已保存的配置档是否仍指向可用模型"
+    },
+    "subagents-detach": {
+      "source": "pi-subagents",
+      "en": "Detach the active foreground single-subagent run without terminating it",
+      "zh": "把当前前台的单子代理运行转后台（不终止）"
+    },
+    "subagents-doctor": {
+      "source": "pi-subagents",
+      "en": "Show subagent diagnostics",
+      "zh": "查看子代理诊断信息"
+    },
+    "subagents-fleet": {
+      "source": "pi-subagents",
+      "en": "Open the live subagent fleet inspector",
+      "zh": "打开子代理实时舰队面板"
+    },
+    "subagents-generate-profiles": {
+      "source": "pi-subagents",
+      "en": "Generate <provider>.quota and <provider>.quality subagent profiles",
+      "zh": "生成 <provider>.quota 与 <provider>.quality 子代理配置档"
+    },
+    "subagents-guide": {
+      "source": "pi-subagents",
+      "en": "Show a packaged subagents guide topic",
+      "zh": "查看内置的 subagents 指南主题"
+    },
+    "subagents-inspect-rpc": {
+      "source": "pi-subagents",
+      "en": "Host integration bridge: answer an async child inspection request with a correlated widget payload (no model turn)",
+      "zh": "宿主集成桥接：用关联的组件载荷应答异步子代理解析请求（不触发模型轮次）"
+    },
+    "subagents-load-profile": {
+      "source": "pi-subagents",
+      "en": "Load a subagent profile into ~/.pi/agent/settings.json",
+      "zh": "把子代理配置档载入 ~/.pi/agent/settings.json"
+    },
+    "subagents-models": {
+      "source": "pi-subagents",
+      "en": "Show model mappings for discovered subagents",
+      "zh": "查看已发现子代理的模型映射"
+    },
+    "subagents-profiles": {
+      "source": "pi-subagents",
+      "en": "List saved subagent profiles",
+      "zh": "列出已保存的子代理配置档"
+    },
+    "subagents-refine": {
+      "source": "pi-subagents",
+      "en": "Generate a bounded project-local refinement overlay for one subagent",
+      "zh": "为单个子代理生成项目本地的受限精调覆盖配置"
+    },
+    "subagents-refresh-provider-models": {
+      "source": "pi-subagents",
+      "en": "Refresh the cached model catalog for one provider",
+      "zh": "刷新单个服务商的模型目录缓存"
+    },
+    "subagents-steer": {
+      "source": "pi-subagents",
+      "en": "Steer a live async subagent run with a message, or one child of it with --child <child-id>",
+      "zh": "向运行中的异步子代理发送引导消息；加 --child <child-id> 可指定其子任务"
+    },
+    "subagents-stop": {
+      "source": "pi-subagents",
+      "en": "Stop a current-session async subagent run, or one child of it with /subagents-stop <run-id> <child-id>",
+      "zh": "停止本会话的异步子代理运行；加 /subagents-stop <run-id> <child-id> 可停止其子任务"
+    },
+    "subagents-watchdog": {
+      "source": "pi-subagents",
+      "en": "Show or toggle the default-off subagent watchdog",
+      "zh": "查看或切换子代理看门狗（默认关闭）"
+    }
+  }
+}
