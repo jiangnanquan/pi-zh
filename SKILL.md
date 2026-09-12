@@ -1,9 +1,9 @@
 ---
-name: q汉化pi
+name: q-zh-pi
 description: Pi Agent CLI（@earendil-works/pi-coding-agent）终端界面简体中文汉化与第三方插件简介运行时覆盖。核心工作流：基于干净备份安全打补丁 → node --check 语法校验 → 插件简介零侵入软链字典 → 四项冒烟验收；支持上游发版后增量适配与一键还原官方英文，版本号严格跟随官方。适用场景：「汉化 pi」「更新 pi 汉化」「pi 汉化失效」「检查 pi 汉化状态」「还原 pi 官方英文」「插件简介变回英文了」。红线约定：只汉化 CLI/TUI 展示文本（命令描述、参数提示、设置菜单、状态栏、插件简介），命令名与 flags 锁定英文原文，不碰模型请求 payload、上下文管理、协议逻辑与插件源码。
 ---
 
-# Pi Agent CLI 汉化（q汉化pi）
+# Pi Agent CLI 汉化（q-zh-pi）
 
 把 [Pi Agent CLI](https://github.com/badlogic/pi-mono)（npm 全局包 `@earendil-works/pi-coding-agent`）的
 CLI/TUI 展示文本汉化为简体中文，并让第三方插件在 `/` 补全面板中的英文简介显示为中文。
