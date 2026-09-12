@@ -65,6 +65,14 @@ bash scripts/install_bundle.sh --force-settings --force-files   # 覆盖前自�
 
 **判据**：`非默认值 + 非冲突解决 = 不带`。所以像 `powerline.placement`（状态栏位置）、`powerline.cost.currency`（货币单位）这类纯偏好不在包内，随你自己的习惯。
 
+**可选增强**：C 线的 `dock-trim-primary-into-footer` 行为补丁只在 `powerline.placement: "below"`（状态栏在输入框下方）时生效——它会把主状态行挪进 footer 槽位，消掉输入框下方空壳 footer 白占的一行。本包不带 `placement`（纯偏好，pi 默认 `above`），想要这个效果就自己设：
+
+```jsonc
+// ~/.pi/agent/settings.json
+"powerline": { "placement": "below" },
+"showLastPrompt": false   // 可选：再关掉「↳ 上次输入」回显行（powerline 读取，默认 true）
+```
+
 ## 不装什么（结构性排除）
 
 `manifest.json` 的 `skip` 段列了全部排除项及原因，包括：`auth.json`（凭据）、`sessions/` / `missions/`（数据）、`npm/`（由 `packages` 清单重建）、`models.json`（模型层）、`trust.json`（含本机路径）、`extensions/herdr-agent-state.ts` 与 `extensions/otty-integration.ts`（外部工具生成，目标机器会自行生成）等。
