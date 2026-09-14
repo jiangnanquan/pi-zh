@@ -47,7 +47,7 @@ bash scripts/install_plugin_i18n.sh
 # ③ 一键汉化插件渲染文案（欢迎页）：备份基底 → 精确替换 → jiti 加载体检 → 渲染行宽断言
 bash scripts/apply_plugin_ui.sh
 
-# ④ 安装「扩展协同环境」懒人包（可选；先 dry-run 看计划，冲突会停下问人）
+# ④ 安装「扩展协同环境」懒人包（可选；已装 pi-team-setup 的机器跳过本步 —— 两者同源，见 D 线互斥提醒）
 bash scripts/install_bundle.sh --dry-run
 bash scripts/install_bundle.sh
 ```
@@ -81,7 +81,7 @@ bash scripts/check_bundle.sh                      # 扩展环境漂移检查：�
 | A. Pi 本体汉化 | 上游发布新版本 | `bash scripts/apply_patch.sh` | 是（先更新版本适配清单） |
 | B. 插件简介汉化 | 插件升级 / 新增插件 | `python3 scripts/scan_plugin_commands.py --check` | 否（运行时覆盖，只增量补字典） |
 | C. 插件 UI 汉化 | 插件升级 / 改了渲染文案 | `bash scripts/apply_plugin_ui.sh --check` | 是（补丁式，幂等重打；基底始终取自 `.zh-backup`） |
-| D. 扩展环境安装 | 新机器 / 想装这套协同环境 | `bash scripts/install_bundle.sh` | 否（幂等；按 `bundle/manifest.json` 声明装） |
+| D. 扩展环境安装 | 新机器 / 想装这套协同环境（未装 pi-team-setup） | `bash scripts/install_bundle.sh` | 否（幂等；按 `bundle/manifest.json` 声明装） |
 | E. 扩展环境导出 | 本机改了自研扩展或协同配置 | `bash scripts/export_bundle.sh` | 否（单向导出；`check_bundle.sh` 做漂移检测） |
 
 ### A. Pi 本体汉化：上游发版后的增量适配
@@ -258,6 +258,8 @@ python3 scripts/probe_dock_rows.py        # dock 行数：解码最终帧，断�
 
 **定位**：分发一套**装完就能协同工作**的扩展组合，**不是**复制维护者的个人配置。
 **载体**：`bundle/manifest.json`（声明）+ `scripts/install_bundle.sh`（确定性执行）。人类可读说明见 `bundle/README.md`。
+
+**互斥提醒（执行前先判定）**：若目标机器的 `pi list` 里已有 [`pi-team-setup`](https://github.com/jiangnanquan/pi-team-setup)，说明扩展环境已由团队引导包管理（与本包同源：包清单 + 4 个自研扩展 + `powerline` 注册），**不要在该机器上跑 D 线** —— 重复安装会互相覆盖 `powerline` 配置。此时只执行 A / B / C 汉化线，并告知用户「扩展环境已由 pi-team-setup 管理，本包侧不装；若要改用本包，需先用 `--uninstall` 精确回滚并用 `pi remove` 退掉团队包」。
 
 **AI 的执行顺序**（分工原则：判定可以交给 AI，执行必须确定性）：
 

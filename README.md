@@ -94,6 +94,8 @@ python3 scripts/probe_dock_rows.py       # dock 行数：未打补丁状态行�
 
 ### 6. 扩展协同环境懒人包（可选，新机器友好）
 
+> **已在用 [`pi-team-setup`](https://github.com/jiangnanquan/pi-team-setup)？跳过本步。** 团队引导包内置的就是同一套扩展组合（包清单、`powerline` 注册、4 个自研扩展），两者高度同源，同时安装会互相覆盖 `powerline` 配置。分工是：**团队同事走 `pi-team-setup` 的 `SETUP.md`**（其中第 6 步会回来调本仓的 A/B/C 汉化线，不装本包），**自己攒环境才走本仓 D 线**。若已两边都装：先 `bash scripts/install_bundle.sh --status` 看清配置现状，再用 `--uninstall`（可加 `--keep-packages` 保留扩展包）退掉本包侧，团队侧用 `pi remove git:github.com/jiangnanquan/pi-team-setup@main`。
+
 分发一套**装完就能协同工作**的扩展组合（不是复制个人配置）：扩展清单 + 协同必需配置 + 4 个自研扩展。
 人类可读说明见 [`bundle/README.md`](bundle/README.md)。
 

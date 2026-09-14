@@ -3,6 +3,11 @@
 > 一套**装完就能协同工作**的 pi 扩展组合 + 汉化入口。
 > 不是复制某个人的个人配置——只带扩展清单、协同配置、自研扩展和汉化。
 
+> [!IMPORTANT]
+> **已在用 [`pi-team-setup`](https://github.com/jiangnanquan/pi-team-setup) 的机器不要装本包。**
+> 该团队引导包与本包的扩展组合同源（包清单 + 4 个自研扩展 + `powerline` 注册），重复安装会互相覆盖 `powerline` 配置。
+> 团队同事请按 [`pi-team-setup/SETUP.md`](https://github.com/jiangnanquan/pi-team-setup/blob/main/SETUP.md) 配置（其第 6 步只调本仓的 A/B/C 汉化线，不装本包）；自行攒环境才走 D 线。
+
 ## 这是什么
 
 pi 的扩展各自都很强，但放在一起会互相抢资源、抢屏幕位置：
