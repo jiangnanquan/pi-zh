@@ -28,6 +28,7 @@ CLI/TUI 展示文本汉化为简体中文，并让第三方插件在 `/` 补全�
 | 9 | 懒人包只分发「协同必需」 | 判据：**非默认值 + 非冲突解决 = 不带**。配置按**白名单**提取，pi 新增字段自动落在包外；凭据、会话数据、个人 skill / Agent / 注入词永不进包 |
 | 10 | 导出单向 | SSOT 是维护者本机 `~/.pi/agent`，`bundle/` 是派生物；**永不从仓库反向覆盖本机**。导出过程机器可核对、结果可复现 |
 | 11 | 安装预检先于写盘 | 冲突默认拒绝（退出码 2）并列出差异，需显式 `--force-*`（覆盖前自动备份）；只改白名单字段，幂等、可精确回滚、保护用户手工改动 |
+| 12 | 插件功能补丁（维护线 F） | 仅当插件有行为缺陷且无扩展点可用时才打最小功能补丁：用户逐条授权 + `id` / `reason` / `authorized_on` + 「新增函数 + 最小调用点替换」形态 + **无触发条件时恒等回退** + 复用 C 线引擎（`--dict i18n/plugin-logic.json`）；只作用于被授权的那一个插件文件 |
 
 当前适配基准：Pi `0.85.1`（以 `scripts/patch_engine.py` 的 `SUPPORTED_VERSIONS` 为唯一权威）。
 
@@ -50,6 +51,10 @@ bash scripts/apply_plugin_ui.sh
 # ④ 安装「扩展协同环境」懒人包（可选；已装 pi-team-setup 的机器跳过本步 —— 两者同源，见 D 线互斥提醒）
 bash scripts/install_bundle.sh --dry-run
 bash scripts/install_bundle.sh
+
+# ⑤ 插件功能补丁（维护线 F）：先看漂移，再应用；写盘后自动 jiti 体检，失败即刻回滚
+python3 scripts/patch_plugin_ui.py --dict i18n/plugin-logic.json --check
+python3 scripts/patch_plugin_ui.py --dict i18n/plugin-logic.json --apply
 ```
 
 插件汉化完成后，在 pi 会话内执行 `/reload`（或重启 pi）即可看到中文简介；CLI 汉化无需重载。
@@ -65,6 +70,8 @@ bash scripts/install_plugin_i18n.sh --status      # 插件简介状态：软链�
 python3 scripts/scan_plugin_commands.py --check   # 插件简介漂移检查：新增 / 原文漂移 / 字典残留
 bash scripts/apply_plugin_ui.sh --check           # 插件 UI 文案漂移检查：字典是否全部命中（不写盘）
 bash scripts/apply_plugin_ui.sh --status          # 插件 UI 汉化状态：官方原版 or 已汉化（备份完好）
+python3 scripts/patch_plugin_ui.py --dict i18n/plugin-logic.json --check   # F 线漂移检查：功能补丁锚点是否仍命中（不写盘）
+python3 scripts/patch_plugin_ui.py --dict i18n/plugin-logic.json --status  # F 线状态：官方原版 or 已应用（备份完好）
 bash scripts/install_bundle.sh --status           # 扩展环境状态：配置 / 文件 / 扩展三项一致性
 bash scripts/check_bundle.sh                      # 扩展环境漂移检查：本机改了但没导出（不写盘）
 ```
@@ -74,7 +81,7 @@ bash scripts/check_bundle.sh                      # 扩展环境漂移检查：�
 
 ## 分步操作规程
 
-五条维护线互相独立，只有 A、C 两条需要重打补丁：
+六条维护线互相独立，只有 A、C、F 三条需要重打补丁：
 
 | 维护线 | 触发条件 | 入口命令 | 需要重打补丁 |
 | :--- | :--- | :--- | :--- |
@@ -83,6 +90,7 @@ bash scripts/check_bundle.sh                      # 扩展环境漂移检查：�
 | C. 插件 UI 汉化 | 插件升级 / 改了渲染文案 | `bash scripts/apply_plugin_ui.sh --check` | 是（补丁式，幂等重打；基底始终取自 `.zh-backup`） |
 | D. 扩展环境安装 | 新机器 / 想装这套协同环境（未装 pi-team-setup） | `bash scripts/install_bundle.sh` | 否（幂等；按 `bundle/manifest.json` 声明装） |
 | E. 扩展环境导出 | 本机改了自研扩展或协同配置 | `bash scripts/export_bundle.sh` | 否（单向导出；`check_bundle.sh` 做漂移检测） |
+| F. 插件功能补丁 | 上游插件改段 / 新增授权补丁 | `python3 scripts/patch_plugin_ui.py --dict i18n/plugin-logic.json --check` | 是（补丁式，幂等重打；基底始终取自 `.zh-backup`） |
 
 ### A. Pi 本体汉化：上游发版后的增量适配
 
@@ -306,6 +314,21 @@ bash scripts/check_bundle.sh     # 漂移检测：本机改了但没导出？（
 
 `check_bundle.sh` 额外会提示 `extensions/` 下的**未分类文件**（既不在分发清单也不在 `skip` 清单），提醒你归入其一。
 
+### F. 插件功能补丁（维护线 F）
+
+**定位**：C 线改的是「给人看的界面文案」，F 线改的是「给模型看的插件行为 / 工具返回」。两者共用同一套引擎，只是字典不同（`--dict`）。
+
+```bash
+python3 scripts/patch_plugin_ui.py --dict i18n/plugin-logic.json --check    # 漂移检测（不写盘）
+python3 scripts/patch_plugin_ui.py --dict i18n/plugin-logic.json --apply    # 应用（幂等；体检失败自动回滚）
+python3 scripts/patch_plugin_ui.py --dict i18n/plugin-logic.json --restore  # 还原官方原版
+```
+
+**当前补丁 F1：`todo-settle-nudge`** —— `@juicesharp/rpiv-todo` 的 `tool/response-envelope.ts`。
+todo 工具原先只回报本次动作（`Updated #7 (in_progress → completed)`），不带全局未结算视图；模型漏发终态 `update` 时没有任何提示（实测 2026-09-15：7 项任务的会话中 #3 被跳过未结算，面板停在 6/7）。补丁在**结算动作**（`update`→completed/deleted、`delete`）后若仍有 `in_progress` 残留，就在返回里追加一行 `Unsettled:` 提醒。
+
+**形态约束**（红线）：只允许「新增函数 + 最小调用点替换」；无触发条件时恒等返回原行为；不碰状态机 / reducer / overlay / replay；`--restore` 必须能还原；上游改段只允许重新定位锚点，不得顺手改逻辑。应用后需在会话内 `/reload` 生效。
+
 ## 常见避坑点与故障排查
 
 | 现象 | 原因 | 处置 |
@@ -377,6 +400,7 @@ python3 scripts/probe_dock_rows.py                 # ⑤ 行为补丁回归：�
   - `ui.json` — TUI 状态栏与交互短语
   - `plugins.json` — 第三方插件命令简介（`source` / `en` / `zh` 三元组）
   - `plugin-ui.json` — 插件 UI 补丁（欢迎页文案 `replacements` + 用户授权行为补丁 `code_patches`）
+  - `plugin-logic.json` — 插件功能补丁（**维护线 F**：`code_patches`，须带 `id` / `reason` / `authorized_on` 与回退分支）
 - **扩展环境声明（`bundle/`，由 E 线导出的派生物）**
   - `manifest.json` — 机器生成的清单：`packages` / `settings`（白名单字段）/ `files`（含 sha256）/ `skip`（跳过的及原因）/ `dependencies`
   - `files/` — 随包分发的实体文件（`claude-code-style.json` + 4 个自研扩展）
@@ -387,7 +411,7 @@ python3 scripts/probe_dock_rows.py                 # ⑤ 行为补丁回归：�
   - `install_plugin_i18n.sh` — 插件简介汉化：安装 / 状态 / 卸载（B 线）
   - `scan_plugin_commands.py` — 插件命令扫描与翻译漂移检查
   - `apply_plugin_ui.sh` — 插件 UI 汉化入口：应用 / 检查 / 状态 / 还原（C 线）
-  - `patch_plugin_ui.py` — 插件渲染文案补丁引擎（未命中拦截、干净基底、失败回滚）
+  - `patch_plugin_ui.py` — 插件补丁引擎（C 线文案与 F 线功能共用；未命中拦截、干净基底、失败回滚；`--dict` 切换字典）
   - `verify_plugin_ts.mjs` — 插件 TS 体检器（jiti 真实加载 + 渲染行宽断言）
   - `probe_editor_border.py` — 行为补丁探针（pty 真启 pi，统计 thinking 紫边框 vs 244 灰边框）
   - `probe_dock_rows.py` — dock 行数探针（pty 解码最终帧，断言状态行占满 footer 槽位、无重复、无回显行）

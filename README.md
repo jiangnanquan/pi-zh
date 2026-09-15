@@ -20,7 +20,7 @@
 - **版本严格跟随**：`pi --version` 严格显示上游官方版本号（当前基准 v0.85.1），不自造版本号。
 - **插件简介零侵入**：第三方插件的命令简介汉化走「运行时覆盖 + 字典映射」，不写入任何插件文件，插件升级后无需重新打补丁。
 - **插件渲染文案最小补丁**：插件渲染期硬编码的文案（如欢迎页）没有注册接口可拦截，只能打精确字面量补丁；补丁只动字符串与模板片段，配 `.zh-backup` 干净基底、jiti 加载体检与一键还原。
-- **行为补丁走授权通道**：C 线原则上不改插件行为；例外（如让 powerline 的 editor 边框重新跟随 pi 的思考层级色）必须进 `code_patches`，带 `id`/`reason`/`authorized_on`、保留原实现作回退，并用 pty 探针回归验证。
+- **行为补丁走授权通道**：C 线原则上不改插件行为；例外（如让 powerline 的 editor 边框重新跟随 pi 的思考层级色）必须进 `code_patches`，带 `id`/`reason`/`authorized_on`、保留原实现作回退，并用 pty 探针回归验证。另有 **维护线 F** 专司「给模型看的插件行为补丁」（如 todo 结算残留提醒），走 `i18n/plugin-logic.json` 的同一套 `code_patches` 契约。
 
 ---
 
@@ -77,13 +77,17 @@ bash scripts/apply_plugin_ui.sh --restore
 ```
 
 覆盖 `pi-powerline-footer` 的启动欢迎页（`welcome.ts`）：提示语、已加载计数、最近会话与相对时间的文案。重启 pi 后生效。
-同一条维护线还含**三条用户授权行为补丁**（均带 `id` / `reason` / `authorized_on` 与回退分支）：
+同一条维护线还含**四条用户授权行为补丁**（C 线 3 条 + F 线 1 条，均带 `id` / `reason` / `authorized_on` 与回退分支）：
 
 1. `editor-chrome-thinking-border` —— powerline 重画的 editor 上下边框原本硬编码 ANSI 244 灰，盖掉了 pi 本体随
    思考层级变化的边框色（`max` → `#ff5fff` 紫）；改为优先继承 pi 注入的 `borderColor`，并保留灰色回退。
 2. `welcome-header-eager-shell` —— 启动欢迎页先用空数据挂 header 立即上屏，取数完成后再换 header 重绘。
 3. `dock-trim-primary-into-footer` —— `placement=below` 时主状态行改由 footer 槽位渲染，消掉 powerline 空壳
    footer 白占的那一行（pi 的 dock 给 footer 槽位 `minSize: 1` 保底）。
+4. `todo-settle-nudge`（**F 线首条**，字典 `i18n/plugin-logic.json`）—— `@juicesharp/rpiv-todo` 的
+   `tool/response-envelope.ts`：结算动作（`update`→completed/deleted、`delete`）后若仍有 `in_progress` 残留，
+   在工具返回里追加一行 `Unsettled:` 提醒；无触发条件时恒等返回。应用/还原：
+   `python3 scripts/patch_plugin_ui.py --dict i18n/plugin-logic.json --apply|--restore`（应用后需 `/reload`）。
 
 行为验收用真图形探针（pty 启动一次 pi，解码最终帧）：
 
@@ -175,7 +179,8 @@ pi-zh/
 │   ├── cli.json                 # CLI --help 参数与帮助说明
 │   ├── ui.json                  # TUI 状态栏与交互短语
 │   ├── plugins.json             # 第三方插件斜杠命令简介（source/en/zh 三元组）
-│   └── plugin-ui.json           # 插件 UI 补丁（欢迎页文案 + 用户授权行为补丁）
+│   ├── plugin-ui.json           # 插件 UI 补丁（欢迎页文案 + 用户授权行为补丁）
+│   └── plugin-logic.json        # 插件功能补丁（维护线 F：模型可见的工具返回行为）
 ├── extensions/
 │   └── plugin-i18n.ts           # 插件简介汉化的运行时覆盖扩展
 ├── scripts/
@@ -184,7 +189,7 @@ pi-zh/
 │   ├── install_plugin_i18n.sh   # 插件简介汉化：安装 / 状态 / 卸载（B 线）
 │   ├── scan_plugin_commands.py  # 插件命令扫描与翻译漂移检查
 │   ├── apply_plugin_ui.sh       # 插件 UI 汉化：应用 / 检查 / 状态 / 还原（C 线）
-│   ├── patch_plugin_ui.py       # 插件 UI 补丁引擎（跨文件原子预检、未命中拦截、回滚）
+│   ├── patch_plugin_ui.py       # 插件补丁引擎（C 线文案 / F 线功能共用；跨文件原子预检、未命中拦截、回滚）
 │   ├── verify_plugin_ts.mjs     # 插件 TS 体检器（jiti 加载 + 渲染行宽断言）
 │   ├── probe_editor_border.py   # 行为补丁探针（pty 真启 pi，统计紫/灰边框行）
 │   ├── probe_dock_rows.py       # dock 行数探针（pty 解码最终帧，断言状态行占满 footer 槽位）
@@ -219,6 +224,7 @@ pi-zh/
 | **渲染文案补丁限界** | 文案补丁只能进 `replacements`，禁止改布局宽度、函数逻辑与导出签名 | 保证汉化不改变插件行为，且能被 jiti 体检与一键还原兜住 |
 | **行为补丁必须授权** | 行为改动只能进 `code_patches`，且必须带 `id`/`reason`/`authorized_on` 与回退分支 | 改动可审计、可回滚，上游重构时能被未命中检测及时暴露 |
 | **C 线禁止裸单词替换** | 短词必须用 `literal` 模式锁定在引号内 | 避免 `Tips` / `Loaded` 这类短词误伤同名标识符 |
+| **F 线功能补丁必须授权** | 功能补丁只能进 `i18n/plugin-logic.json` 的 `code_patches`，形态限「新增函数 + 最小调用点替换」，无触发条件时恒等回退 | 防止把「修缺陷」变成「改插件」，且上游改段时可被未命中检测暴露 |
 | **懒人包不夹带个人上下文** | 只提取白名单字段与声明文件；凭据、会话、个人 skill / Agent / 注入词永不进包 | 防止个人数据泄漏与环境污染 |
 | **导出单向** | 永不从 `bundle/` 反向覆盖本机 `~/.pi/agent` | 避免派生物污染 SSOT |
 | **安装先预检** | 冲突默认拒绝，覆盖必须显式 `--force-*` | 避免弄丢用户已有配置与自研扩展 |

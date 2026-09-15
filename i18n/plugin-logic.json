@@ -1,0 +1,33 @@
+{
+  "_readme": "pi-zh 插件功能补丁字典（维护线 F）。与 C 线（plugin-ui.json）共用同一套补丁引擎（scripts/patch_plugin_ui.py --dict 本文件），但语义不同：C 线改的是『给人看的界面文案』，F 线改的是『给模型看的插件行为 / 工具返回』。每条 code_patch 都必须有用户逐条授权记录。",
+  "_update_policy": "补 code_patches 时必须：① 用 python 逐字节复制上游片段（含 tab 缩进）并用 count() 确认唯一命中；② id / reason / authorized_on 齐全，reason 写明现象、依据、回退分支；③ 改完跑 --check 与写盘后的 jiti 体检；④ 上游发版导致 from 失配时严格模式会拒绝写盘，须人工重新定位并同步更新 source_version。",
+  "targets": [
+    {
+      "package": "@juicesharp/rpiv-todo",
+      "file": "tool/response-envelope.ts",
+      "source_version": "2.10.1",
+      "note": "F 线首条：todo 工具『结算后残留』提醒。选点理由：buildToolResult 同时持有 action / params / state / op，是唯一能在一处内看到『本次动作 + 全局任务列表』的地方；该模块是纯函数模块，无副作用，补丁改动面最小（新增 1 个函数 + 1 处调用）。",
+      "verify_expect": [
+        "settleNudge",
+        "Unsettled:"
+      ],
+      "replacements": [],
+      "code_patches": [
+        {
+          "id": "todo-settle-nudge",
+          "authorized_on": "2026-09-15",
+          "reason": "rpiv-todo 的 todo 工具返回只报本次动作（如 `Updated #7 (in_progress → completed)`），不含全局未结算视图；实测 2026-09-15 一次 7 项任务的分析中，#3 被跳过未结算而无任何提示，面板因此长期停在 6/7。本补丁在返回前检查是否仍有 in_progress 残留，命中则追加一行提醒，把唯一的自我纠正点（工具返回）补上。只改返回文本，不碰状态机/ reducer / overlay / replay。回退分支：非结算动作（create/list/get）或无残留时恒等返回原文本；整体还原走 .zh-backup（--restore）。",
+          "from": "export function buildToolResult(\n",
+          "to": "function settleNudge(text: string, state: TaskState, op: Op): string {\n\t// [pi-zh settle-nudge] F 线授权补丁：结算动作后仍有 in_progress 残留时，向模型追加提醒。\n\t// 回退分支：非结算动作或无残留时原样返回输入，行为与上游完全一致。\n\tconst settled =\n\t\top.kind === \"delete\" || (op.kind === \"update\" && (op.toStatus === \"completed\" || op.toStatus === \"deleted\"));\n\tif (!settled) return text;\n\tconst unsettled = state.tasks.filter((task) => task.status === \"in_progress\");\n\tif (unsettled.length === 0) return text;\n\tconst list = unsettled.map((task) => `#${task.id} ${sanitizeTerminalText(task.subject)}`).join(\", \");\n\treturn `${text}\\nUnsettled: ${list} still in progress. Mark each one completed, move it back to pending, or delete it.`;\n}\n\nexport function buildToolResult(\n"
+        },
+        {
+          "id": "todo-settle-nudge",
+          "authorized_on": "2026-09-15",
+          "reason": "同 todo-settle-nudge：结算动作（update→completed/deleted、delete）完成后，若列表中仍有其它 in_progress，则把返回文本替换为带提醒的版本；无残留时 settleNudge 原样返回输入，即与上游行为一致。逐条独立可回滚，from 片段唯一命中由严格模式把关。",
+          "from": "\treturn { content: [{ type: \"text\", text }], details };\n",
+          "to": "\treturn { content: [{ type: \"text\", text: settleNudge(text, state, op) }], details };\n"
+        }
+      ]
+    }
+  ]
+}

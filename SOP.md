@@ -242,7 +242,45 @@ bash scripts/install_bundle.sh              # 幂等重跑即可补齐（已一�
 
 ---
 
-## 六、 常见问题与排查指南
+## 六、 插件功能补丁（维护线 F）
+
+> 定位：C 线改的是「给人看的界面文案」，F 线改的是「给模型看的插件行为 / 工具返回」。
+> 两者共用同一套引擎（`patch_plugin_ui.py`），只是字典不同（`--dict i18n/plugin-logic.json`）。
+
+### 场景 1：日常检查与应用（幂等）
+
+```bash
+python3 scripts/patch_plugin_ui.py --dict i18n/plugin-logic.json --check    # 漂移检测（不写盘）
+python3 scripts/patch_plugin_ui.py --dict i18n/plugin-logic.json --status   # 当前状态
+python3 scripts/patch_plugin_ui.py --dict i18n/plugin-logic.json --apply    # 应用（体检失败自动回滚）
+python3 scripts/patch_plugin_ui.py --dict i18n/plugin-logic.json --restore  # 一键还原官方原版
+```
+
+应用后需在 pi 会话内 `/reload`（或重启）才会加载新代码。
+
+### 场景 2：上游插件升级后补丁失配
+
+`--check` 报「行为补丁 xxx 未命中（上游改了该段实现）」时：
+
+1. 逐字节复制上游新片段（**必须含 tab 缩进**），并用 `count()` 确认唯一命中；
+2. 更新 `i18n/plugin-logic.json` 的 `from` / `to` 与 `source_version`；
+3. 重跑 `--check` → `--apply`，写盘后 jiti 体检会断言 `verify_expect` 源码标记；
+4. 严格模式（默认）在任何一条未命中时**拒绝写盘**，不会留下半成品。
+
+### 场景 3：行为回归验证（新增/修改补丁后必做）
+
+补丁的作用点是「模型看到的文本」，验收要直接用 pi 自带 jiti 加载补丁后的模块，构造样例 state/op 逐条断言。
+至少覆盖三条路径：结算动作 + 有残留（应触发）、结算动作 + 无残留（不应触发）、非结算动作（不应触发）。
+
+### 场景 4：排查「模型又开始漏结算」（F1 生效判定）
+
+1. `--status` 确认补丁在位；2. 确认会话已 `/reload`；
+3. 若仍漏结算：属**已知边界**——本补丁只在 todo 工具被调用时提醒，模型在未调用 todo 的回合里结束工作不会触发；
+   这种情况应改 F 线设计（如回合末注入消息），**不得**直接改成「自动改状态」（会误杀跨轮合法任务）。
+
+---
+
+## 七、 常见问题与排查指南
 
 ### 1. 运行 `pi` 提示语法错误 (SyntaxError)
 * **原因**：可能某条翻译中包含了未转义的单双引号。
