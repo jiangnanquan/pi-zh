@@ -1,6 +1,6 @@
 ---
 name: q-zh-pi
-description: Pi Agent CLI（@earendil-works/pi-coding-agent）终端界面简体中文汉化、第三方插件简介运行时覆盖、插件渲染文案（欢迎页）补丁，以及「扩展协同环境懒人包」的安装（D 线）与导出（E 线）。核心工作流：基于干净备份安全打补丁 → node --check / jiti 加载语法校验 → 插件简介零侵入软链字典 → 五项冒烟验收；支持上游发版后增量适配与一键还原官方英文，版本号严格跟随官方。适用场景：「汉化 pi」「更新 pi 汉化」「pi 汉化失效」「检查 pi 汉化状态」「还原 pi 官方英文」「插件简介变回英文了」「汉化欢迎页」「欢迎页变回英文」「装 pi 扩展环境」「新机器配 pi」「pi 启动卡顿」「状态栏不显示」「扩展打架」。红线约定：只汉化 CLI/TUI 展示文本（命令描述、参数提示、设置菜单、状态栏、插件简介、插件欢迎页文案），命令名与 flags 锁定英文原文，不碰模型请求 payload、上下文管理与协议逻辑；插件渲染行为（含布局）只在用户逐条授权下走 code_patches 通道（当前 3 条：editor 边框跟随思考色、欢迎页空壳先行、dock 去空白占位行）；懒人包只分发「协同必需」的扩展清单与配置，凭据、会话数据、个人 skill / Agent / 注入词永不进包。
+description: Pi Agent CLI（@earendil-works/pi-coding-agent）终端界面简体中文汉化、第三方插件简介运行时覆盖、插件渲染文案（欢迎页）补丁，以及「扩展协同环境懒人包」的安装（D 线）与导出（E 线）。核心工作流：基于干净备份安全打补丁 → node --check / jiti 加载语法校验 → 插件简介零侵入软链字典 → 五项冒烟验收；支持上游发版后增量适配与一键还原官方英文，版本号严格跟随官方。适用场景：「汉化 pi」「更新 pi 汉化」「pi 汉化失效」「检查 pi 汉化状态」「还原 pi 官方英文」「插件简介变回英文了」「汉化欢迎页」「欢迎页变回英文」「升级提示变回英文了」「装 pi 扩展环境」「新机器配 pi」「pi 启动卡顿」「状态栏不显示」「扩展打架」。红线约定：只汉化 CLI/TUI 展示文本（命令描述、参数提示、设置菜单、状态栏、启动升级通知、插件简介、插件欢迎页文案），命令名与 flags 锁定英文原文，不碰模型请求 payload、上下文管理与协议逻辑；插件渲染行为（含布局）只在用户逐条授权下走 code_patches 通道（当前 3 条：editor 边框跟随思考色、欢迎页空壳先行、dock 去空白占位行）；懒人包只分发「协同必需」的扩展清单与配置，凭据、会话数据、个人 skill / Agent / 注入词永不进包。
 ---
 
 # Pi Agent CLI 汉化（q-zh-pi）
@@ -99,7 +99,18 @@ bash scripts/check_bundle.sh                      # 扩展环境漂移检查：�
 ```bash
 npm update -g @earendil-works/pi-coding-agent
 pi --version
+
+# 升级会整体替换包目录，此处应为空；
+# 若残留旧版 .zh-backup，必须先删掉再打补丁 —— 否则引擎会拿旧版文件当基底，写出新旧混杂的补丁文件。
+PI_PKG=$(python3 -c "import sys; sys.path.insert(0,'scripts'); from patch_engine import locate_pi_package; print(locate_pi_package())")
+find "$PI_PKG/dist" -name "*.zh-backup"
 ```
+
+> **不要给 pi 配自动升级**（cron / launchd 定时 `pi update --all`），三条硬理由：
+> ① 升级整体替换包目录，A 线汉化全部失效，且 `SUPPORTED_VERSIONS` 未跟上时打补丁会被直接拒绝；
+> ② C / F 线插件补丁带 `source_version` 校验，插件升级后严格模式拒绝写盘，必须人工重新锚定；
+> ③ 后台升级时机不可控，正在运行的会话会与磁盘代码不一致。
+> 推荐做法：靠启动时的升级通知提醒（A 线已汉化），由人决定何时升级；升级后按 A → B → C → F 顺序重新对齐四条线。
 
 **A2. 将新版本号追加进适配清单**
 
@@ -343,6 +354,9 @@ todo 工具原先只回报本次动作（`Updated #7 (in_progress → completed)
 | `--check` 报「未命中（上游可能改了措辞）」 | 上游改了文案或重构了表达式 | 按 C1 更新 `i18n/plugin-ui.json` 的 `en`/`zh` 后重跑 `--check`；`--allow-missing` 仅限应急且需人工复核 |
 | 欢迎页中文串位 / 行宽错乱 | 中文全角宽度未被正确参与布局计算 | C3 体检会断言行宽自洽并自动回滚；若仍异常，先 `--restore` 再排查对应条目 |
 | 从别处拷贝的 pi-zh 里没有 `.zh-backup` | 插件目录被重装或换机，备份不在版本控制内 | 正常：以当前官方文件为新基底重新备份即可，不影响幂等性 |
+| 升级后 `.zh-backup` 是旧版本的 | 升级方式为增量覆盖而非整目录替换，残留了上一版的干净基底 | **先删除全部 `.zh-backup` 再打补丁**（见 A1 检查命令）；否则新版文件会被旧版基底污染 |
+| 启动时的升级通知变回英文（`Update Available` / `Package Updates Available`） | 上游改了通知文案或渲染表达式 | 通知文案在 `i18n/ui.json` 的 `exact_literals`；按 A2/A3 补条目后重跑 `bash scripts/apply_patch.sh`（幂等重打） |
+| 字典替换误伤代码标识符（如 `collapseChangelog: ` 被 `Changelog: ` 命中） | A 线的裸串替换启发式（含空格即直接替换）分不清「字符串字面量」与「属性名 + 冒号」 | 该 key 改为带引号的字面量（如 `"Changelog: "`）锁定在引号内；引擎的 `node --check` 会拦截并原子回滚，不会产生半成品 |
 | 装懒人包时被拒（退出码 2）并列出冲突 | 本机已有不同的配置值或同名文件——默认不覆盖 | 看计划：手工合并后重跑（幂等）；确认覆盖才用 `--force-settings` / `--force-files` |
 | 装了扩展但状态栏没有自研段 | `powerline.customItems` / `layout` 未写入（如用 `--skip-packages` 或手工只拷了扩展文件） | `bash scripts/install_bundle.sh --status` 对比，再跑一次安装（幂等）；确认 `pi-powerline-footer` 已装且重启 pi |
 | `check_bundle.sh` 报「本机已改但未导出」 | 本机改了自研扩展或协同配置，仓库 `bundle/` 落在后面 | 确认改动是想要的 → `bash scripts/export_bundle.sh` 重新导出；否则改回本机 |
@@ -397,7 +411,7 @@ python3 scripts/probe_dock_rows.py                 # ⑤ 行为补丁回归：�
   - `keybindings.json` — 快捷键说明
   - `settings.json` — 交互设置菜单选项
   - `cli.json` — `pi --help` 参数与帮助文本
-  - `ui.json` — TUI 状态栏与交互短语
+  - `ui.json` — TUI 状态栏、交互短语与启动升级通知（新版本 / 插件包可更新两类横幅）
   - `plugins.json` — 第三方插件命令简介（`source` / `en` / `zh` 三元组）
   - `plugin-ui.json` — 插件 UI 补丁（欢迎页文案 `replacements` + 用户授权行为补丁 `code_patches`）
   - `plugin-logic.json` — 插件功能补丁（**维护线 F**：`code_patches`，须带 `id` / `reason` / `authorized_on` 与回退分支）

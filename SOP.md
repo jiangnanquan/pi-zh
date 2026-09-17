@@ -105,7 +105,15 @@ bash scripts/check_bundle.sh                  # （维护者）漂移检测：�
 ```bash
 npm update -g @earendil-works/pi-coding-agent
 pi --version
+
+# 遗留基底检查：升级后这里应为空。
+# 若残留旧版 .zh-backup，必须先删掉再打补丁（否则引擎拿旧版文件当基底，写出新旧混杂的文件）。
+PI_PKG=$(python3 -c "import sys; sys.path.insert(0,'scripts'); from patch_engine import locate_pi_package; print(locate_pi_package())")
+find "$PI_PKG/dist" -name "*.zh-backup"
 ```
+
+> 不建议给 pi 配自动升级（cron / launchd 定时 `pi update --all`）：升级会整体替换包目录，使 A 线汉化全部失效，
+> 并使 C / F 线插件补丁的 `source_version` 失配。启动时的升级通知（已汉化）就是提醒入口，由人决定升级时机。
 
 ### 步骤 2：更新引擎支持版本
 
@@ -121,7 +129,8 @@ SUPPORTED_VERSIONS = ["0.85.1", "0.86.0"]
 python3 scripts/patch_engine.py --dry-run
 ```
 
-检查控制台输出的替换数量与未命中项。如果官方新增了命令或快捷键，可在 `i18n/commands.json` 或 `i18n/keybindings.json` 中增补词条。
+检查控制台输出的替换数量与未命中项。如果官方新增了命令或快捷键，可在 `i18n/commands.json` 或 `i18n/keybindings.json` 中增补词条；
+启动升级通知（「新版本可用」/「插件包可更新」横幅）的文案在 `i18n/ui.json` 的 `exact_literals`。
 
 ### 步骤 4：全量应用与冒烟验收
 
@@ -129,7 +138,7 @@ python3 scripts/patch_engine.py --dry-run
 bash scripts/apply_patch.sh
 ```
 
-确认四个测试（版本输出、中文帮助、插件字典一致性、插件简介运行时覆盖）全部通过。
+确认五项冒烟（版本输出、中文帮助、插件字典一致性、插件简介运行时覆盖、插件 UI 汉化）全部通过。
 
 ---
 
@@ -336,3 +345,16 @@ python3 scripts/patch_plugin_ui.py --dict i18n/plugin-logic.json --restore  # �
 ### 11. 卸载后扩展包仍在
 * **原因**：用了 `--keep-packages`，或该包在安装前就已存在（不属本包管理范围）。
 * **处置**：单独移除 `pi remove <spec>`；查看本包装过哪些包：状态指针 `.pi-zh-bundle-state.json` 的 `packages_installed`。
+
+### 12. 启动时的升级通知（新版本 / 插件包可更新）变回英文
+* **原因**：上游改了通知文案或渲染表达式，`i18n/ui.json` 中的 `exact_literals` 锚点失配（A 线属补丁式汉化，提示被官方文件覆盖也属预期）。
+* **处置**：对照新版原文更新 `i18n/ui.json` 的 6 条通知文案（标题 / 正文 / `Changelog:` 行 / `Packages:` 表头），再 `bash scripts/apply_patch.sh` 幂等重打。
+* **注意**：含冒号的短串（如 `Changelog:`）必须带引号锁定为字面量，否则会误伤 `collapseChangelog: ` 这类属性名（`node --check` 会拦截回滚）。
+
+### 13. 给 pi 配了自动升级（cron / launchd 定时 `pi update --all`）会怎样
+* **会同时坏掉四条线**：
+  1. A 线：升级整体替换包目录，汉化全部失效，需重新走第二节流程；
+  2. C / F 线：插件与插件补丁的 `source_version` 失配，严格模式拒绝写盘，需人工重新锚定；
+  3. 会话一致性：后台升级时机不可控，正在运行的会话会与磁盘代码不一致。
+* **处置**：去掉定时任务，改为靠启动时的升级通知提醒（已汉化）＋人工决定的节奏；
+  确需半自动化时也只做「检查 + 提醒」（如 `pi --version` 对比 `https://pi.dev/api/latest-version`），不要自动写盘。

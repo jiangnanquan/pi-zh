@@ -69,7 +69,14 @@
     "  Enter/Space to change \\xB7 Esc to cancel": "  Enter/空格 切换 · Esc 取消",
     "  Enter/Space to change \\u00b7 Esc to cancel": "  Enter/空格 切换 · Esc 取消",
     "  No settings available": "  暂无可用设置",
-    "  No matching settings": "  未找到匹配的设置"
+    "  No matching settings": "  未找到匹配的设置",
+
+    "Package updates are available. Run ": "以下插件包有可用更新，运行 ",
+    "Package Updates Available": "插件包可更新",
+    "Packages:": "插件包：",
+    "New version ${release.version} is available. Run ": "新版本 ${release.version} 已发布，运行 ",
+    "Update Available": "发现新版本",
+    "\"Changelog: \"": "\"更新日志：\""
   },
   "startup_hints": {
     "interrupt": "中断",

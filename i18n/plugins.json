@@ -80,6 +80,11 @@
       "en": "Set working message theme. Usage: /vibe [theme|off|mode|model|generate]",
       "zh": "设置工作提示语主题。用法: /vibe [theme|off|mode|model|generate]"
     },
+    "pi-subagents-bridge": {
+      "source": "pi-subagents",
+      "en": "Internal pane-native request dispatch",
+      "zh": "内部面板原生请求分发（面板桥接内部使用）"
+    },
     "prompt-workflow": {
       "source": "pi-subagents",
       "en": "Run a prompt template through native pi-subagents: /prompt-workflow <name> [args]",

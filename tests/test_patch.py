@@ -141,6 +141,42 @@ const hint="  Type to filter \\xB7 Enter to select \\xB7 Esc to go back";
         self.assertIn("取消`", patched)
         self.assertIn("输入文字过滤 · Enter 确认选择 · Esc 返回", patched)
 
+    def test_update_notice_contract(self):
+        """启动升级通知汉化：6 条文案命中，且不误伤 collapseChangelog 属性名
+
+        回归背景：2026-09-17 首次为「新版本 / 插件包可更新」横幅补字典时，
+        裸串 "Changelog: " 把源码中的 `collapseChangelog: ` 属性名一起替换了，
+        被引擎的 node --check 拦下并原子回滚；随后将 key 收紧为带引号的 "\"Changelog: \""。
+        """
+        ui = self.i18n["ui"]
+        cli = {}
+        sample_code = (
+            'const action = theme.fg("accent", `${APP_NAME} update --extensions`);\n'
+            'const updateInstruction = theme.fg("muted", `New version ${release.version} is available. Run `) + action;\n'
+            'const changelogLine = theme.fg("muted", "Changelog: ") + changelogLink;\n'
+            'new Text(`${theme.bold(theme.fg("warning", "Update Available"))}`, 1, 0);\n'
+            'collapseChangelog: this.settingsManager.getCollapseChangelog(),\n'
+            'const pkgHint = theme.fg("muted", "Package updates are available. Run ");\n'
+            'const header = theme.fg("warning", "Package Updates Available");\n'
+            'const label = theme.fg("muted", "Packages:");\n'
+        )
+        patched, count = patch_engine.patch_cli_and_ui(sample_code, cli, ui)
+
+        # 1) 新版本通知 3 条
+        self.assertIn("新版本 ${release.version} 已发布，运行 ", patched)
+        self.assertIn('"更新日志："', patched)
+        self.assertIn('"发现新版本"', patched)
+        # 2) 插件包更新通知 3 条
+        self.assertIn("以下插件包有可用更新，运行 ", patched)
+        self.assertIn('"插件包可更新"', patched)
+        self.assertIn('"插件包："', patched)
+        # 3) 红线：命令 action 保持英文（不得被字典吞掉）
+        self.assertIn("${APP_NAME} update --extensions", patched)
+        # 4) 红线：属性名 collapseChangelog 与 getCollapseChangelog() 绝不能被污染
+        self.assertIn("collapseChangelog: this.settingsManager.getCollapseChangelog(),", patched)
+        self.assertNotIn("collapse更新日志", patched)
+        self.assertEqual(count, 6, "应恰好命中 6 条通知文案，多一条即为误伤信号")
+
 
 if __name__ == "__main__":
     unittest.main()
