@@ -48,13 +48,18 @@ bash scripts/apply_plugin_ui.sh --restore    # 还原：欢迎页立即恢复英
 该汉化作用于插件**渲染期硬编码**的文案（如 `pi-powerline-footer` 的欢迎页 `welcome.ts`）——这类文案没有任何注册接口可拦截，
 只能打精确字面量补丁；文案补丁只替换字符串与模板片段。重启 pi 后生效。
 
-同一字典还承载**用户逐条授权的行为补丁**（`code_patches`），当前 3 条：
+同一字典还承载**用户逐条授权的行为补丁**（`code_patches`），当前 1 条：
 
 | `id` | 改了什么 |
 | :--- | :--- |
-| `editor-chrome-thinking-border` | powerline 重画的 editor 上下边框重新跟随 pi 的思考层级色（原先硬编码 ANSI 244 灰，盖掉了 `thinkingMax` 紫色） |
 | `welcome-header-eager-shell` | 启动欢迎页先用空数据挂 header 立即上屏，取数完成后再换 header 重绘 |
-| `dock-trim-primary-into-footer` | `placement=below` 时主状态行改由 footer 槽位渲染，消掉空壳 footer 白占的一行 |
+
+已退役（上游已原生吸收，退役 = 从字典删除该段 + 探针转为上游行为复核）：
+
+| `id` | 退役日 | 依据 |
+| :--- | :--- | :--- |
+| `editor-chrome-thinking-border` | 2026-09-22 | powerline 0.17.2 原生实现边框继承（#221），未打补丁跑探针已紫 6 / 灰 0 |
+| `dock-trim-primary-into-footer` | 2026-09-22 | powerline 0.17.2 原生把次级详情放回 footer 预留行（#217），footer 空时返回 `[]` 不占行 |
 
 行为补丁的验收需要真图形探针（pty 中真启一次 pi）：
 
@@ -214,7 +219,8 @@ bash scripts/smoke_test.sh           # 全量冒烟（含 C 线项）
 
 > 行为补丁（`code_patches`）比文案脆弱：它锚定的是插件实现代码。上游一旦重构该段，`--check` 会报未命中，
 > 此时不要用 `--allow-missing` 绕过——应人工核对新版实现，重新给出 `from`，并确保新写法仍保留原实现作为回退分支
-> （`editor-chrome-*` 保留灰色回退；`dock-trim-*` 在 `placement != below` 时保留原空壳行为）。
+> （如 `welcome-header-eager-shell` 在 `canShowWelcome` 失败时调 `dismissWelcome(ctx)` 清掉空壳）。
+> 若发现上游已原生实现同类改动，则应按退役流程处理：先跑对应探针确认未打补丁已达标，再从字典删除该 `code_patches` 段。
 
 体检失败时引擎会自动从备份回滚，插件始终停留在可用状态。
 
@@ -339,11 +345,12 @@ F 线补丁分两类作用点，验收方式不同：
 * **处置**：`bash scripts/apply_plugin_ui.sh --check` 看未命中项 → 按第四节步骤 2 更新 `code_patches` → 重打补丁 → 跑探针复验。
 
 ### 8. 输入框下方多出一行空白 / 多出「↳ 上次输入」回显行
-* **原因（空白行）**：powerline 为了拿 pi 的 `footerData` 注册了一个空壳 footer（`render(): [""]`），
-  而 pi 的 fullscreen dock 给 footer 槽位 `minSize: 1` 保底，于是空壳也占一行。`dock-trim-primary-into-footer`
-  补丁已让 `placement=below` 时主状态行改由该槽位渲染。
-* **处置**：先 `bash scripts/apply_plugin_ui.sh --status` 确认补丁在位；不在位就 `bash scripts/apply_plugin_ui.sh` 重打，
-  再用 `python3 scripts/probe_dock_rows.py` 验收。若换了 `placement`（`/powerline placement above`），补丁会退回原空壳行为。
+* **原因（空白行）**：旧版 powerline 为了拿 pi 的 `footerData` 注册了一个空壳 footer（`render(): [""]`），
+  而 pi 的 fullscreen dock 给 footer 槽位 `minSize: 1` 保底，于是空壳也占一行。
+  **0.17.2 起上游已原生修复**（#217：footer 空时返回 `[]`，次级详情复用该预留行），pi-zh 的
+  `dock-trim-primary-into-footer` 补丁已因此退役。
+* **处置**：先用 `python3 scripts/probe_dock_rows.py` 判定——屏幕最后一行即主状态行即正常；
+  仍复现时确认已升级到 `pi-powerline-footer >= 0.17.2`，并跑 `bash scripts/apply_plugin_ui.sh --check` 看字典漂移。
 * **回显行**：`settings.json` 的 `showLastPrompt`（默认 `true`）控制「↳ 上次输入」回显行；置 `false` 即关闭。
   验证：`python3 scripts/probe_dock_rows.py --send-prompt "…"`（会真实调用一次模型）。
 

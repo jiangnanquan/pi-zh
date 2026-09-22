@@ -36,18 +36,22 @@ function buildLeftColumn(data, colWidth) {
 }
 
 function buildRightColumn(data, colWidth) {
+  const countLines = [];
+  if (contextFiles > 0 || skills > 0 || promptTemplates > 0) {
+    countLines.push(` ${itemPrefix}${fgOnly("gitClean", `${contextFiles}`)} context file${contextFiles !== 1 ? "s" : ""}`);
+    countLines.push(` ${itemPrefix}${fgOnly("gitClean", `${skills}`)} skill${skills !== 1 ? "s" : ""}`);
+    countLines.push(` ${itemPrefix}${fgOnly("gitClean", `${promptTemplates}`)} prompt template${promptTemplates !== 1 ? "s" : ""}`);
+  } else {
+    countLines.push(` ${dim("No context files, skills, or prompts loaded")}`);
+  }
   return [
     ` ${bold(fgOnly("accent", "Tips"))}`,
     ` ${dim("/")} for commands`,
     ` ${dim("!")} to run bash`,
     ` ${dim("Shift+Tab")} cycle thinking`,
     ` ${bold(fgOnly("accent", "Loaded"))}`,
-    ` ${itemPrefix}${fgOnly("gitClean", `${contextFiles}`)} context file${contextFiles !== 1 ? "s" : ""}`,
-    ` ${itemPrefix}${fgOnly("gitClean", `${extensions}`)} extension${extensions !== 1 ? "s" : ""}`,
-    ` ${itemPrefix}${fgOnly("gitClean", `${skills}`)} skill${skills !== 1 ? "s" : ""}`,
-    ` ${itemPrefix}${fgOnly("gitClean", `${promptTemplates}`)} prompt template${promptTemplates !== 1 ? "s" : ""}`,
+    ...countLines,
     ` ${itemPrefix}${fgOnly("gitClean", `= ${formatTokens(0)}`)} initial prompt tokens`,
-    ` ${dim("No extensions loaded")}`,
     ` ${bold(fgOnly("accent", "Recent sessions"))}`,
     ` ${dim("No recent sessions")}`,
   ];
@@ -66,34 +70,17 @@ function renderWidth() {
 }
 """
 
-# index.ts 的等价摘录：承载全部「用户逐条授权」的行为补丁锚点
-# （editor 边框继承思考色 3 处 + 欢迎页空壳先行 1 处 + dock 精简 3 处）
+# index.ts 的等价摘录：0.17.2 起上游已原生实现 editor 边框继承思考层级色（#221）
+# 与 footer 预留行（#217），本摘录只承载仍在字典中的 welcome-header-eager-shell 锚点。
 SAMPLE_INDEX_TS = """import { getFgAnsiCode, ansi } from "./colors.ts";
 
-export function renderFastPowerlineEditor(editor: unknown, width: number) {
-  const borderColor = getFgAnsiCode("sep");
-  const border = (marker: "\u2191" | "\u2193" | "\u2500") => {
-    const text = marker === "\u2500" ? "\u2500".repeat(width - 2) : `${marker}${"\u2500".repeat(Math.max(0, width - 3))}`;
-    return ` ${borderColor}${text}${ansi.reset}`;
-  };
-  return [border("\u2500")];
-}
-
-export function buildChrome(editor: any, width: number) {
-  const render = () => {
-    try {
-      if (width > 0) {
-        return () => {
-          const bc = (s: string) => `${getFgAnsiCode("sep")}${s}${ansi.reset}`;
-          return bc("\u2500".repeat(width - 2));
-        };
-      }
-    } catch {
-      return () => "";
-    }
-    return () => "";
-  };
-  return render();
+export function colorEditorBorder(editor: unknown, text: string): string {
+  const borderColor = editor && typeof editor === "object"
+    ? Reflect.get(editor, "borderColor")
+    : undefined;
+  return typeof borderColor === "function"
+    ? borderColor.call(editor, text)
+    : `${getFgAnsiCode("sep")}${text}${ansi.reset}`;
 }
 
 export function setupWelcomeHeader(ctx: any) {
@@ -107,7 +94,7 @@ export function setupWelcomeHeader(ctx: any) {
         if (!canShowWelcome(ctx, request, generation)) return;
         const modelName = ctx.model?.name || ctx.model?.id || "No model";
         const providerName = ctx.model?.provider || "Unknown";
-        const loadedCounts = discoverLoadedCounts();
+        const loadedCounts = discoverLoadedCounts(pi.getCommands());
         const initialContextTokens = estimateInitialContextTokens(ctx);
 
         const header = new WelcomeHeader(modelName, providerName, recentSessions, loadedCounts, initialContextTokens);
@@ -119,25 +106,15 @@ export function setupWelcomeHeader(ctx: any) {
 
 export function registerExtension(ctx: any) {
   function setupCustomEditor(ctx: any) {
-    ctx.ui.setWidget("powerline-top", (_tui: any, theme: Theme) => ({
-      dispose() {},
-      invalidate() {
-        resetLayoutCache();
-      },
-      render(width: number): string[] {
-        return measureWidget("primary", () => renderPowerlinePrimaryLines(width, theme));
-      },
-    }), { placement: config.placement === "below" ? "belowEditor" : "aboveEditor" });
-
-    ctx.ui.setFooter((tui: any, _theme: Theme, footerData: ReadonlyFooterDataProvider) => {
+    ctx.ui.setFooter((tui: any, theme: Theme, footerData: ReadonlyFooterDataProvider) => {
       footerDataRef = footerData;
       return {
         dispose() {},
         invalidate() {
           requestStatusRender();
         },
-        render(): string[] {
-          return [""];
+        render(width: number): string[] {
+          return renderPowerlineSecondaryLines(width, theme);
         },
       };
     });
@@ -178,7 +155,7 @@ class TempPluginCase(unittest.TestCase):
         self.pkg_dir = self.nm_dir / PACKAGE
         self.pkg_dir.mkdir(parents=True)
         (self.pkg_dir / "package.json").write_text(
-            json.dumps({"name": PACKAGE, "version": "0.17.1"}), encoding="utf-8"
+            json.dumps({"name": PACKAGE, "version": "0.17.2"}), encoding="utf-8"
         )
         self.target_file = self.pkg_dir / "welcome.ts"
         self.target_file.write_text(self.source, encoding="utf-8")
@@ -220,14 +197,14 @@ class TestDictContract(unittest.TestCase):
 
     def test_replacement_scale(self):
         total = sum(len(t["replacements"]) for t in self.targets)
-        self.assertGreaterEqual(total, 19, "欢迎页条目数不应少于 19 条")
+        self.assertGreaterEqual(total, 18, "欢迎页条目数不应少于 18 条")
 
     def test_patch_scale_is_pinned(self):
         """条目规模是维护基线：变更必须同步 00_状态.md 与本节数字"""
         text = sum(len(t["replacements"]) for t in self.targets)
         code = sum(len(t.get("code_patches", [])) for t in self.targets)
-        self.assertEqual(19, text, "文案条目数变化需同步 00_状态.md")
-        self.assertEqual(7, code, "行为补丁锚点数变化需同步 00_状态.md")
+        self.assertEqual(18, text, "文案条目数变化需同步 00_状态.md")
+        self.assertEqual(1, code, "行为补丁锚点数变化需同步 00_状态.md")
 
     def test_modes_are_known(self):
         for target in self.targets:
@@ -280,7 +257,7 @@ class TestCodePatchContract(unittest.TestCase):
         self.patches = [p for t in self.code_targets for p in t["code_patches"]]
 
     def test_patches_exist_and_are_authorized(self):
-        self.assertTrue(self.patches, "至少应存在一条行为补丁（editor 边框继承思考色）")
+        self.assertTrue(self.patches, "至少应存在一条行为补丁（欢迎页空壳先行）")
         for patch in self.patches:
             self.assertTrue(patch.get("id"))
             self.assertTrue(patch.get("reason"))
@@ -310,33 +287,10 @@ class TestCodePatchContract(unittest.TestCase):
         self.assertTrue(all(item["kind"] == "code" for item in items))
         content, results = ppu.patch_text(SAMPLE_INDEX_TS, items)
         self.assertEqual([], [r["en"] for r in results if r["hits"] == 0])
-        self.assertIn('Reflect.get(editor as object, "borderColor")', content)
-        self.assertIn("typeof piBorderColor === \"function\"", content)
-        self.assertNotIn('const borderColor = getFgAnsiCode("sep");', content)
-
-    def test_patch_keeps_gray_fallback(self):
-        items = ppu.build_patch_items(self.code_targets[0])
-        content, _ = ppu.patch_text(SAMPLE_INDEX_TS, items)
-        self.assertEqual(
-            2, content.count('getFgAnsiCode("sep")'),
-            "两处边框绘制都必须保留原灰色实现作为回退分支",
-        )
-
-    def test_dock_trim_moves_primary_line_into_footer_slot(self):
-        """dock 精简补丁：placement=below 时主状态行改由 footer 槽位渲染，widget 让位不重复占行"""
-        items = ppu.build_patch_items(self.code_targets[0])
-        content, results = ppu.patch_text(SAMPLE_INDEX_TS, items)
-        self.assertEqual([], [r["en"] for r in results if r["hits"] == 0])
-        # footer 槽位：below 走主状态行，其他 placement 保留原空壳
-        self.assertIn('if (config.placement !== "below") return [""];', content)
-        self.assertIn("return renderPowerlinePrimaryLines(width, theme);", content)
-        # widget 让位：below 时返回空数组，避免同一行渲染两次
-        self.assertIn('if (config.placement === "below") return [];', content)
-        # 原空壳与 perf 计时段仍作为回退分支保留
-        self.assertEqual(1, content.count('return [""];'), "空壳回退分支必须保留且只剩一处")
-        self.assertIn('measureWidget("primary", () => renderPowerlinePrimaryLines(width, theme))', content)
-        self.assertNotIn("_theme: Theme", content, "footer 工厂形参应启用为 theme 供渲染使用")
-        self.assertIn("ctx.ui.setFooter((tui: any, theme: Theme", content)
+        self.assertIn("const shellHeader = new WelcomeHeader(modelName, providerName);", content)
+        self.assertIn("dismissWelcome(ctx);", content)
+        # editor 边框与 dock 行为补丁已于 0.17.2 退役（上游 #221 / #217 已原生实现）
+        self.assertEqual(1, len(self.patches), "0.17.2 起仅保留 welcome-header-eager-shell")
 
 
 class TestRawTemplateRewrites(unittest.TestCase):
@@ -398,7 +352,6 @@ class TestApplyIdempotentAndRestore(TempPluginCase):
         self.assertIn("欢迎回来！", first_pass)
         self.assertIn("个上下文文件", first_pass)
         self.assertNotIn("Welcome back!", first_pass)
-        self.assertIn('Reflect.get(editor as object, "borderColor")', index_pass)
         self.assertIn(
             "const shellHeader = new WelcomeHeader(modelName, providerName);",
             index_pass,

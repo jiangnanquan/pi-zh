@@ -5,6 +5,11 @@
     "maintenance": "插件升级后先跑 python3 scripts/scan_plugin_commands.py --check 看差异，汉化新条目或跑 --update-baseline 刷新 en 原文基线"
   },
   "commands": {
+    "btw": {
+      "source": "@narumitw/pi-btw",
+      "en": "Ask a quick side question without adding it to the main conversation",
+      "zh": "快速提出旁支问题（不加入主对话上下文）"
+    },
     "todos": {
       "source": "@juicesharp/rpiv-todo",
       "en": "Show all todos on the current branch, grouped by status",

@@ -2,7 +2,7 @@
   "schema": 1,
   "name": "pi 扩展协同环境",
   "description": "一套验证过可协同工作的 pi 扩展组合 + 汉化入口（由 pi-zh 维护线 E 从维护者本机导出）",
-  "exported_at": "2026-09-17",
+  "exported_at": "2026-09-22",
   "exported_by": "pi-zh/scripts/export_bundle.sh（E 线：本机白名单提取）",
   "packages": [
     {
@@ -32,6 +32,10 @@
     {
       "spec": "npm:pi-powerline-footer",
       "note": "底部状态栏 + 欢迎页；4 个自研扩展段与 C 线补丁的宿主"
+    },
+    {
+      "spec": "npm:@narumitw/pi-btw",
+      "note": "旁支提问（/btw：问一个小问题但不写入主对话上下文）"
     }
   ],
   "settings": {
@@ -90,7 +94,7 @@
   },
   "files": [
     {
-      "path": "claude-code-style.json",
+      "path": "pi-cc-extensions.json",
       "bytes": 33,
       "sha256": "f055f3c459a64d804c7613a6ea7c18f38bede28ebd6e03a85e3f8af3a33f3bad"
     },

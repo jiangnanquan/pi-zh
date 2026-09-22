@@ -58,12 +58,20 @@ SETTINGS_WHITELIST = [
 
 # 整份复制的文件（相对 agent 目录）。已核对：均不含本机绝对路径。
 BUNDLE_FILES = [
-    "claude-code-style.json",
+    "pi-cc-extensions.json",   # 0.9.2 起由 claude-code-style.json 改名（旧名仅向后兼容读取）
     "extensions/cache-hit.ts",
     "extensions/context-bar.ts",
     "extensions/ds-balance.ts",
     "extensions/tps-status.ts",
 ]
+
+# 文件级 JSON 字段白名单：某些配置文件需要整文件分发，但其中大多数字段是个人偏好。
+# 按判据「非默认值 + 非冲突解决 = 不带」，这里声明每个文件只提取哪些顶层字段；
+# 未列出的文件整文件分发。pi-cc-extensions.json 本机 20+ 字段中只有 showStartupHeader
+# 为非默认值（false，避免 cc 自己画 logo header 与欢迎页冲突）。
+FILE_JSON_FIELDS = {
+    "pi-cc-extensions.json": ["showStartupHeader"],
+}
 
 # 显式跳过清单：给目标机器上的 AI 提供「该跳过什么」的判断依据。
 # 这是本项目对「结构性排除」的声明，安装脚本不会去动这些路径。
@@ -106,6 +114,7 @@ PACKAGE_NOTES = {
     "npm:pi-cc-extensions": "Claude Code 风格扩展包（startup header / 全屏交互等）",
     "npm:cc-safety-net": "命令安全网（危险命令拦截）",
     "npm:pi-powerline-footer": "底部状态栏 + 欢迎页；4 个自研扩展段与 C 线补丁的宿主",
+    "npm:@narumitw/pi-btw": "旁支提问（/btw：问一个小问题但不写入主对话上下文）",
 }
 
 # 外部依赖声明：不是硬阻断，而是给 AI 的决策依据（装不装、装完要提示用户什么）
@@ -293,14 +302,28 @@ def extract_packages(settings: dict) -> list:
     return extract_package_specs(settings)
 
 
+def bundle_file_content(agent_dir: Path, rel: str) -> str:
+    """返回某分发文件「进包形态」的文本内容（应用文件级 JSON 字段白名单）"""
+    src = agent_dir / rel
+    if not src.exists():
+        raise BundleError(f"待分发文件不存在：{src}")
+    text = src.read_text(encoding="utf-8")
+    fields = FILE_JSON_FIELDS.get(rel)
+    if not fields:
+        return text
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as e:
+        raise BundleError(f"{rel} 不是合法 JSON，无法应用字段白名单：{e}")
+    picked = {key: data[key] for key in fields if key in data}
+    return json.dumps(picked, indent=2, ensure_ascii=False) + "\n"
+
+
 def collect_file_entries(agent_dir: Path) -> list:
     """读取待分发文件的内容与哈希，并做绝对路径红线校验"""
     entries = []
     for rel in BUNDLE_FILES:
-        src = agent_dir / rel
-        if not src.exists():
-            raise BundleError(f"待分发文件不存在：{src}")
-        text = src.read_text(encoding="utf-8")
+        text = bundle_file_content(agent_dir, rel)
         hits = scan_abs_paths(text)
         if hits:
             raise BundleError(
@@ -393,10 +416,9 @@ def write_bundle(manifest: dict, agent_dir: Path):
     BUNDLE_FILES_DIR.mkdir(parents=True, exist_ok=True)
 
     for entry in manifest["files"]:
-        src = agent_dir / entry["path"]
         dest = BUNDLE_FILES_DIR / entry["path"]
         dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dest)
+        dest.write_text(bundle_file_content(agent_dir, entry["path"]), encoding="utf-8")
 
     dump_json(MANIFEST_PATH, manifest)
 
@@ -471,7 +493,7 @@ def cmd_check(args):
         if rel not in bundle_files:
             problems.append(f"文件 {rel}：bundle 清单中缺失")
             continue
-        digest = sha256_bytes(src.read_text(encoding="utf-8").encode("utf-8"))
+        digest = sha256_bytes(bundle_file_content(agent_dir, rel).encode("utf-8"))
         if digest != bundle_files[rel]:
             problems.append(f"文件 {rel}：本机已改但未导出")
     for rel in bundle_files:

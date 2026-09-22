@@ -59,18 +59,18 @@ bash scripts/install_bundle.sh --force-settings --force-files   # 覆盖前自�
 
 | 类别 | 内容 | 为什么必须带 |
 | :--- | :--- | :--- |
-| 扩展 | `manifest.json` 的 `packages`（7 个） | 扩展清单本体 |
+| 扩展 | `manifest.json` 的 `packages`（8 个） | 扩展清单本体 |
 | 配置 | `quietStartup: true` | 不带则 cc 清空 header、foot 异步填充，重现约 660ms 启动空窗 |
 | 配置 | `tuiMode: "fullscreen"` | CC 扩展 fullscreen 交互（单击展开 / hover 高亮 / 回到底部）的前提 |
 | 配置 | `powerline.customItems` + `layout` | 不带则自研扩展装了也不显示——状态段须在此注册 |
 | 配置 | `powerline.disabledSegments` | 关掉内建 `context_pct` / `cache_read`，避免与自研段重复显示 |
-| 文件 | `claude-code-style.json` | 不带则 cc 绘制自己的 logo header，与欢迎页再次冲突 |
+| 文件 | `pi-cc-extensions.json` | 不带则 cc 绘制自己的 logo header，与欢迎页再次冲突（只带 `showStartupHeader: false` 一个字段，其余个人偏好按白名单滤除） |
 | 文件 | 4 个自研扩展 | `cache-hit.ts` / `context-bar.ts` / `ds-balance.ts` / `tps-status.ts` |
 | 汉化 | A / B / C 线 | 简体中文界面（随仓库的分发，不在本包内） |
 
 **判据**：`非默认值 + 非冲突解决 = 不带`。所以像 `powerline.placement`（状态栏位置）、`powerline.cost.currency`（货币单位）这类纯偏好不在包内，随你自己的习惯。
 
-**可选增强**：C 线的 `dock-trim-primary-into-footer` 行为补丁只在 `powerline.placement: "below"`（状态栏在输入框下方）时生效——它会把主状态行挪进 footer 槽位，消掉输入框下方空壳 footer 白占的一行。本包不带 `placement`（纯偏好，pi 默认 `above`），想要这个效果就自己设：
+**可选增强**：状态栏位置（`powerline.placement`）属纯偏好（pi 默认 `above`），本包不带。若想放到输入框下方：
 
 ```jsonc
 // ~/.pi/agent/settings.json

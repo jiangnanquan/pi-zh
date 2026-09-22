@@ -16,7 +16,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-SUPPORTED_VERSIONS = ["0.85.1", "0.86.1"]
+SUPPORTED_VERSIONS = ["0.85.1", "0.86.1", "0.87.0"]
 
 
 def log(msg, level="INFO"):

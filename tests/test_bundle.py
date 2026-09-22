@@ -113,7 +113,11 @@ class BundleCase(unittest.TestCase):
     def _write_agent(self, settings: dict, extensions: dict, claude_style=True):
         be.dump_json(self.agent / "settings.json", settings)
         if claude_style:
-            be.dump_json(self.agent / "claude-code-style.json", {"showStartupHeader": False})
+            be.dump_json(self.agent / "pi-cc-extensions.json", {
+                "showStartupHeader": False,
+                "mode": "on",
+                "enableCustomFooter": True,
+            })
         for name, text in extensions.items():
             (self.agent / "extensions" / name).write_text(text, encoding="utf-8")
 
@@ -181,6 +185,20 @@ class TestManifestIntegrity(BundleCase):
         expected = be.sha256_bytes(SAMPLE_EXTENSIONS["cache-hit.ts"].encode("utf-8"))
         self.assertEqual(expected, by_path["extensions/cache-hit.ts"]["sha256"])
 
+    def test_file_json_fields_whitelist(self):
+        """配置文件按字段白名单提取：只带非默认的协同必需字段，个人偏好不进包"""
+        manifest = self._manifest()
+        entry = next(f for f in manifest["files"] if f["path"] == "pi-cc-extensions.json")
+        content = be.bundle_file_content(self.agent, "pi-cc-extensions.json")
+        self.assertEqual(
+            {"showStartupHeader": False}, json.loads(content),
+            "只有 showStartupHeader 属协同必需（默认 true 会与欢迎页冲突），mode / enableCustomFooter 等不得进包",
+        )
+        self.assertEqual(
+            entry["sha256"], be.sha256_bytes(content.encode("utf-8")),
+            "清单哈希必须与写入 bundle/files 的进包内容一致",
+        )
+
     def test_absolute_path_in_file_blocks_export(self):
         extensions = dict(SAMPLE_EXTENSIONS)
         extensions["cache-hit.ts"] = 'const p = "/Users/someone/secret";\n'
@@ -212,7 +230,8 @@ class TestInstallContract(BundleCase):
         for entry in self.manifest["files"]:
             dest = self.fixture / "files" / entry["path"]
             dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(self.agent / entry["path"], dest)
+            # 与真实导出同一路径：应用文件级字段白名单，保证哈希与清单一致
+            dest.write_text(be.bundle_file_content(self.agent, entry["path"]), encoding="utf-8")
         self._old_bundle_dir = be.BUNDLE_FILES_DIR
         self._old_manifest = be.MANIFEST_PATH
         be.BUNDLE_FILES_DIR = self.fixture / "files"
@@ -245,7 +264,7 @@ class TestInstallContract(BundleCase):
         self.assertEqual(True, settings["quietStartup"])
         self.assertEqual("fullscreen", settings["tuiMode"])
         self.assertEqual(SAMPLE_POWERLINE["customItems"], settings["powerline"]["customItems"])
-        self.assertTrue((target / "claude-code-style.json").exists())
+        self.assertTrue((target / "pi-cc-extensions.json").exists())
         self.assertIn("npm:pi-subagents", settings["packages"])
 
     def test_conflict_stops_before_write(self):
@@ -259,7 +278,7 @@ class TestInstallContract(BundleCase):
         settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
         self.assertEqual(False, settings.get("quietStartup"), "冲突拦截后不得改动配置")
         self.assertNotIn("tuiMode", settings, "冲突拦截后不得有半成品写入")
-        self.assertFalse((target / "claude-code-style.json").exists())
+        self.assertFalse((target / "pi-cc-extensions.json").exists())
         self.assertFalse((target / be.STATE_NAME).exists())
         self.assertFalse(self.bin_log.exists(), "冲突拦截时不应调用 pi install")
 
@@ -305,7 +324,7 @@ class TestInstallContract(BundleCase):
         self.assertEqual("// user variant\n", (target / "extensions" / "cache-hit.ts").read_text(encoding="utf-8"),
                          "被覆盖的用户文件应还原")
         self.assertFalse((target / "extensions" / "context-bar.ts").exists(), "本包新建的文件应删除")
-        self.assertFalse((target / "claude-code-style.json").exists())
+        self.assertFalse((target / "pi-cc-extensions.json").exists())
         self.assertFalse((target / be.STATE_NAME).exists(), "卸载后应删除状态指针")
 
     def test_uninstall_protects_manual_edits(self):

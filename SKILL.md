@@ -1,6 +1,6 @@
 ---
 name: q-zh-pi
-description: Pi Agent CLI（@earendil-works/pi-coding-agent）终端界面简体中文汉化、第三方插件简介运行时覆盖、插件渲染文案（欢迎页）补丁，以及「扩展协同环境懒人包」的安装（D 线）与导出（E 线）。核心工作流：基于干净备份安全打补丁 → node --check / jiti 加载语法校验 → 插件简介零侵入软链字典 → 五项冒烟验收；支持上游发版后增量适配与一键还原官方英文，版本号严格跟随官方。适用场景：「汉化 pi」「更新 pi 汉化」「pi 汉化失效」「检查 pi 汉化状态」「还原 pi 官方英文」「插件简介变回英文了」「汉化欢迎页」「欢迎页变回英文」「升级提示变回英文了」「装 pi 扩展环境」「新机器配 pi」「pi 启动卡顿」「状态栏不显示」「扩展打架」。红线约定：只汉化 CLI/TUI 展示文本（命令描述、参数提示、设置菜单、状态栏、启动升级通知、插件简介、插件欢迎页文案），命令名与 flags 锁定英文原文，不碰模型请求 payload、上下文管理与协议逻辑；插件渲染行为（含布局）只在用户逐条授权下走 code_patches 通道（当前 3 条：editor 边框跟随思考色、欢迎页空壳先行、dock 去空白占位行）；懒人包只分发「协同必需」的扩展清单与配置，凭据、会话数据、个人 skill / Agent / 注入词永不进包。
+description: Pi Agent CLI（@earendil-works/pi-coding-agent）终端界面简体中文汉化、第三方插件简介运行时覆盖、插件渲染文案（欢迎页）补丁，以及「扩展协同环境懒人包」的安装（D 线）与导出（E 线）。核心工作流：基于干净备份安全打补丁 → node --check / jiti 加载语法校验 → 插件简介零侵入软链字典 → 五项冒烟验收；支持上游发版后增量适配与一键还原官方英文，版本号严格跟随官方。适用场景：「汉化 pi」「更新 pi 汉化」「pi 汉化失效」「检查 pi 汉化状态」「还原 pi 官方英文」「插件简介变回英文了」「汉化欢迎页」「欢迎页变回英文」「升级提示变回英文了」「装 pi 扩展环境」「新机器配 pi」「pi 启动卡顿」「状态栏不显示」「扩展打架」。红线约定：只汉化 CLI/TUI 展示文本（命令描述、参数提示、设置菜单、状态栏、启动升级通知、插件简介、插件欢迎页文案），命令名与 flags 锁定英文原文，不碰模型请求 payload、上下文管理与协议逻辑；插件渲染行为（含布局）只在用户逐条授权下走 code_patches 通道（当前 1 条：欢迎页空壳先行；editor 边框跟随思考色与 dock 去空白占位行已于 powerline 0.17.2退役——上游已原生实现）；懒人包只分发「协同必需」的扩展清单与配置，凭据、会话数据、个人 skill / Agent / 注入词永不进包。
 ---
 
 # Pi Agent CLI 汉化（q-zh-pi）
@@ -24,13 +24,13 @@ CLI/TUI 展示文本汉化为简体中文，并让第三方插件在 `/` 补全�
 | 5 | 版本严格跟随 | `pi --version` 显示上游官方版本号，不自造版本 |
 | 6 | 插件简介零侵入 | 插件斜杠命令简介走「运行时覆盖 + `i18n/plugins.json` 字典映射」，不改 `node_modules` 任何文件 |
 | 7 | 插件渲染文案最小补丁 | 无注册接口可拦截的渲染文案（欢迎页等）走「精确字面量补丁 + `.zh-backup` + jiti 体检 + 一键还原」，只动字符串与模板片段 |
-| 8 | 行为补丁授权通道 | C 线原则上只改文案；确需改插件行为（当前 3 条：editor 边框色、欢迎页空壳先行、dock 去空白占位行）时必须走 `code_patches`：带 `id`/`reason`/`authorized_on`、保留原实现作回退分支、共用预检与还原；每条都要有 pty 探针回归验证 |
+| 8 | 行为补丁授权通道 | C 线原则上只改文案；确需改插件行为（当前 1 条：欢迎页空壳先行；上游已原生吸收的补丁及时退役）时必须走 `code_patches`：带 `id`/`reason`/`authorized_on`、保留原实现作回退分支、共用预检与还原；每条都要有 pty 探针回归验证 |
 | 9 | 懒人包只分发「协同必需」 | 判据：**非默认值 + 非冲突解决 = 不带**。配置按**白名单**提取，pi 新增字段自动落在包外；凭据、会话数据、个人 skill / Agent / 注入词永不进包 |
 | 10 | 导出单向 | SSOT 是维护者本机 `~/.pi/agent`，`bundle/` 是派生物；**永不从仓库反向覆盖本机**。导出过程机器可核对、结果可复现 |
 | 11 | 安装预检先于写盘 | 冲突默认拒绝（退出码 2）并列出差异，需显式 `--force-*`（覆盖前自动备份）；只改白名单字段，幂等、可精确回滚、保护用户手工改动 |
 | 12 | 插件功能补丁（维护线 F） | 仅当插件有行为缺陷且无扩展点可用时才打最小功能补丁：用户逐条授权 + `id` / `reason` / `authorized_on` + 「新增函数 + 最小调用点替换」形态 + **无触发条件时恒等回退** + 复用 C 线引擎（`--dict i18n/plugin-logic.json`）；只作用于被授权的那一个插件文件 |
 
-当前适配基准：Pi `0.86.1`（以 `scripts/patch_engine.py` 的 `SUPPORTED_VERSIONS` 为唯一权威）。
+当前适配基准：Pi `0.87.0`（以 `scripts/patch_engine.py` 的 `SUPPORTED_VERSIONS` 为唯一权威）。
 
 ## 快速开始（一键命令）
 
@@ -225,23 +225,28 @@ bash scripts/apply_plugin_ui.sh --check      # 未命中条目就是上游改动
 **C2b. 行为补丁（`code_patches`，例外通道）**
 
 C 线原则上只改文案。确实需要改动插件渲染行为时，改动进 `i18n/plugin-ui.json` 的 `code_patches`，
-与文案共用同一个引擎、同一份备份、同一个 `--restore`。当前共 3 条，均由用户逐条授权：
+与文案共用同一个引擎、同一份备份、同一个 `--restore`。当前共 1 条，由用户逐条授权：
 
 | `id` | 授权日 | 改了什么 | 回归探针 |
 | :--- | :--- | :--- | :--- |
-| `editor-chrome-thinking-border` | 2026-09-12 | editor 上下边框从硬编码 244 灰改为继承 pi 的 `borderColor`（thinking 色），保留灰色回退 | `scripts/probe_editor_border.py` |
 | `welcome-header-eager-shell` | 2026-09-13 | 启动欢迎页先用空数据挂 header 立即上屏，取数完成后再换 header 重绘 | 目视启动过程（无独立探针） |
-| `dock-trim-primary-into-footer` | 2026-09-13 | `placement=below` 时主状态行改由 footer 槽位渲染，消掉空壳 footer 白占的一行 | `scripts/probe_dock_rows.py` |
 
-示例（`editor-chrome-thinking-border`）：
+**已退役的补丁**（上游已原生吸收 —— 退役 = 从 `code_patches` 删除该段，探针转为「上游行为复核」用途）：
+
+| `id` | 原授权日 | 退役日 | 退役依据 |
+| :--- | :--- | :--- | :--- |
+| `editor-chrome-thinking-border` | 2026-09-12 | 2026-09-22 | powerline 0.17.2 原生实现 editor 边框继承（上游 #221）；未打补丁跑 `probe_editor_border.py` 已紫 6 / 灰 0 通过 |
+| `dock-trim-primary-into-footer` | 2026-09-13 | 2026-09-22 | powerline 0.17.2 原生把次级详情放回 footer 预留行（上游 #217），footer 空时返回 `[]` 不再占行；未打补丁跑 `probe_dock_rows.py` 已末行即状态行通过 |
+
+示例（`welcome-header-eager-shell`）：
 
 ```json
 {
-  "id": "editor-chrome-thinking-border",
-  "authorized_on": "2026-09-12",
+  "id": "welcome-header-eager-shell",
+  "authorized_on": "2026-09-13",
   "reason": "为什么必须改、依据是什么",
-  "from": "  const borderColor = getFgAnsiCode(\"sep\");\n",
-  "to": "  const piBorderColor = Reflect.get(editor as object, \"borderColor\");\n"
+  "from": "        if (!canShowWelcome(ctx, request, generation)) return;\n        const recentSessions = await getRecentSessions(3, request.signal);\n…",
+  "to": "        if (!canShowWelcome(ctx, request, generation)) return;\n        const modelName = ctx.model?.name || …"
 }
 ```
 
@@ -255,12 +260,12 @@ python3 scripts/probe_editor_border.py    # 边框色：在 pty 中真启一次 
 python3 scripts/probe_dock_rows.py        # dock 行数：解码最终帧，断言状态行即屏幕最后一行、无重复、无回显行
 ```
 
-实测基线（powerline 0.17.1 / thinking=max）：
+实测基线（powerline 0.17.2 / thinking=max；两条探针现用于复核上游原生行为与 F 线回归）：
 
-| 探针 | 未打补丁 | 已打补丁 |
+| 探针 | 退役前（旧上游版本） | 现状（0.17.2） |
 | :--- | :--- | :--- |
-| `probe_editor_border.py`（120×40，看 editor 宽度的长横线） | editor 宽 紫 2 / 灰 4 ⇒ 失败 | editor 宽 紫 6 / 灰 0 ⇒ 通过 |
-| `probe_dock_rows.py`（140×40） | 状态行之后还有 1 行空壳占位 ⇒ 失败 | 屏幕最后一行即主状态行 ⇒ 通过 |
+| `probe_editor_border.py`（120×40，看 editor 宽度的长横线） | editor 宽 紫 2 / 灰 4 ⇒ 失败 | editor 宽 紫 6 / 灰 0 ⇒ 通过（上游原生实现） |
+| `probe_dock_rows.py`（140×40） | 状态行之后还有 1 行空壳占位 ⇒ 失败 | 屏幕最后一行即主状态行 ⇒ 通过（上游原生实现） |
 
 `probe_dock_rows.py` 可选 `--send-prompt "…"` 真发一次提问，用来验证 `showLastPrompt`（回显行）开关；
 不带该参数时全程离线、不调用模型。
@@ -377,7 +382,7 @@ python3 scripts/patch_plugin_ui.py --dict i18n/plugin-logic.json --restore  # �
 | 改写插件源码 | 直接编辑 `node_modules` 中插件的 `description` | 仅允许「运行时覆盖 + `i18n/plugins.json` 字典映射」 |
 | 越界翻译 | 翻译插件 `registerTool` 的工具描述或 skill 描述 | 工具描述会进模型请求 payload，一律不碰 |
 | 插件渲染文案裸替换 | 用 `raw` 模式替换 `Tips` 这类短词，误伤同名标识符 | 短词一律用 `literal` 模式锁定引号；`raw` 仅用于自带上下文的模板片段 |
-| C 线越权改逻辑 | 未授权就调整布局宽度、重写函数体或导出签名；或把行为改动混进 `replacements` | 文案改动只能进 `replacements`；行为改动只能进 `code_patches`，且必须带 `id`/`reason`/`authorized_on` 与回退分支；布局类改动（如 `dock-trim-*`）同样只能以「用户逐条授权 + 探针回归」的方式入字典 |
+| C 线越权改逻辑 | 未授权就调整布局宽度、重写函数体或导出签名；或把行为改动混进 `replacements` | 文案改动只能进 `replacements`；行为改动只能进 `code_patches`，且必须带 `id`/`reason`/`authorized_on` 与回退分支；布局类改动（如 editor 边框色、dock 行数）同样只能以「用户逐条授权 + 探针回归」的方式入字典；上游原生实现同类改动后必须退役补丁并复核探针 |
 | 懒人包夹带个人上下文 | 把 `auth.json` / `sessions/` / `models.json` / `trust.json` / 个人 skill / `APPEND_SYSTEM.md` 导进 `bundle/` | 只提取 `SETTINGS_WHITELIST` 与 `BUNDLE_FILES`；结构性排除项列入 `manifest.json` 的 `skip` 段并写明原因 |
 | 导出物含本机绝对路径 | 自研扩展里写死 `/Users/jnq/...`；或把本机目录结构写进清单 | 路径一律相对 `$PI_AGENT_DIR`；导出前引擎会扫描绝对路径，命中即拒 |
 | 反向覆盖本机 | 从 `bundle/` 往 `~/.pi/agent/` 做「同步」 | 导出单向：本机是 SSOT；修改本机只能由人在本机进行，再重新导出 |
