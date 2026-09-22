@@ -28,6 +28,26 @@
           "to": "\treturn { content: [{ type: \"text\", text: settleNudge(text, state, op) }], details };\n"
         }
       ]
+    },
+    {
+      "package": "@juicesharp/rpiv-todo",
+      "file": "todo-overlay.ts",
+      "source_version": "2.10.1",
+      "note": "F 线第二条：面板结算残留清理。选点理由：hideCompletedTasksFromPreviousTurn 是『上一轮 completed 行隐藏』的唯一出口，也是此刻唯一能决定面板是否该注销的位置；改动面为 1 处调用替换（update() + forced render），不触碰状态机 / reducer / replay。",
+      "verify_expect": [
+        "[pi-zh overlay-cleanup]",
+        "this.update();"
+      ],
+      "replacements": [],
+      "code_patches": [
+        {
+          "id": "todo-overlay-cleanup",
+          "authorized_on": "2026-09-17",
+          "reason": "现象：2026-09-17 实测，6 项任务全部结算后，面板以暗色 ○ Todos (6/6) 形态滞留屏幕不消失，直到下一次 todo 工具调用才被清掉（用户当场提出疑问）。依据：hideCompletedTasksFromPreviousTurn() 只发非 forced requestRender()，而『隐藏后行数 N→0』属 shape change（同文件 toggleCollapse 对高度变化明确使用 requestRender(true) 并注释说明）；且 widget 注销（setWidget(key, undefined)）只存在于 update() 内，隐藏路径永远不经过它 —— 于是 selectOverlayTasks 已过滤成 0 行，widget 槽位却未注销。本补丁把隐藏后的刷新交回 update()（空列表即走标准注销路径），并追加一次强制重绘兜住高度收缩。只改刷新方式，不碰状态机 / reducer / replay / renderWidget 的分支语义。回退分支：面板仍有未完成任务时 update() 只做常规刷新 + 一次强制重绘，恒等于上游可见行为；整体还原走 .zh-backup（--restore）。",
+          "from": "\t\tthis.completedTaskIdsPendingHide.clear();\n\t\tthis.tui?.requestRender();",
+          "to": "\t\tthis.completedTaskIdsPendingHide.clear();\n\t\t// [pi-zh overlay-cleanup] F 线授权补丁：隐藏后走 update() 注销空面板（setWidget(undefined)\n\t\t// 只在其中），并强制重绘收缩高度。回退分支：仍有任务时 update() 仅常规刷新。\n\t\tthis.update();\n\t\tthis.tui?.requestRender(true);"
+        }
+      ]
     }
   ]
 }

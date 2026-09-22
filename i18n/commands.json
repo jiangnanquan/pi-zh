@@ -25,6 +25,10 @@
   "share": {
     "description": "将当前会话分享为 GitHub 秘密 Gist"
   },
+  "bug": {
+    "description": "向 Pi 开发者报告问题",
+    "argumentHint": "<问题描述>"
+  },
   "copy": {
     "description": "复制最后一条 Agent 回复到剪贴板"
   },

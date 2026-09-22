@@ -76,7 +76,13 @@
     "Packages:": "插件包：",
     "New version ${release.version} is available. Run ": "新版本 ${release.version} 已发布，运行 ",
     "Update Available": "发现新版本",
-    "\"Changelog: \"": "\"更新日志：\""
+    "\"Changelog: \"": "\"更新日志：\"",
+    "${APP_NAME} crashed on ${when} (${crash.message}). Run /bug to report it; the crash details are attached automatically.": "${APP_NAME} 于 ${when} 崩溃（${crash.message}）。运行 /bug 提交报告，崩溃详情会自动附加。",
+    "If this looks like a ${APP_NAME} bug, /bug sends a report to the developers.": "如果这看起来像 ${APP_NAME} 的缺陷，可用 /bug 向开发者发送报告。",
+    "To report this crash: ": "报告此崩溃：",
+    " run /bug. The crash details are attached automatically.": "运行 /bug 提交报告，崩溃详情会自动附加。",
+    "run \\`${APP_NAME} -r\\` to resume the session, then": "运行 \\`${APP_NAME} -r\\` 恢复会话，然后",
+    "start pi and": "启动 pi 并"
   },
   "startup_hints": {
     "interrupt": "中断",

@@ -19,6 +19,10 @@
     "label": "HTTP 空闲超时",
     "description": "等待 HTTP 响应头或数据块的最大空闲间隔。对于暂停超过 5 分钟的本地模型可禁用。"
   },
+  "cache-warming-mode": {
+    "label": "提示缓存预热",
+    "description": "'off'：关闭；'streaming'：智能体运行期间持续预热提示缓存；'idle'：运行间隙的空闲期，在继续预热仍然划算时也预热"
+  },
   "hide-thinking": {
     "label": "隐藏思考过程",
     "description": "在助手回复中隐藏思考过程块"

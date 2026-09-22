@@ -30,7 +30,7 @@ CLI/TUI 展示文本汉化为简体中文，并让第三方插件在 `/` 补全�
 | 11 | 安装预检先于写盘 | 冲突默认拒绝（退出码 2）并列出差异，需显式 `--force-*`（覆盖前自动备份）；只改白名单字段，幂等、可精确回滚、保护用户手工改动 |
 | 12 | 插件功能补丁（维护线 F） | 仅当插件有行为缺陷且无扩展点可用时才打最小功能补丁：用户逐条授权 + `id` / `reason` / `authorized_on` + 「新增函数 + 最小调用点替换」形态 + **无触发条件时恒等回退** + 复用 C 线引擎（`--dict i18n/plugin-logic.json`）；只作用于被授权的那一个插件文件 |
 
-当前适配基准：Pi `0.85.1`（以 `scripts/patch_engine.py` 的 `SUPPORTED_VERSIONS` 为唯一权威）。
+当前适配基准：Pi `0.86.1`（以 `scripts/patch_engine.py` 的 `SUPPORTED_VERSIONS` 为唯一权威）。
 
 ## 快速开始（一键命令）
 
@@ -335,10 +335,13 @@ python3 scripts/patch_plugin_ui.py --dict i18n/plugin-logic.json --apply    # �
 python3 scripts/patch_plugin_ui.py --dict i18n/plugin-logic.json --restore  # 还原官方原版
 ```
 
-**当前补丁 F1：`todo-settle-nudge`** —— `@juicesharp/rpiv-todo` 的 `tool/response-envelope.ts`。
-todo 工具原先只回报本次动作（`Updated #7 (in_progress → completed)`），不带全局未结算视图；模型漏发终态 `update` 时没有任何提示（实测 2026-09-15：7 项任务的会话中 #3 被跳过未结算，面板停在 6/7）。补丁在**结算动作**（`update`→completed/deleted、`delete`）后若仍有 `in_progress` 残留，就在返回里追加一行 `Unsettled:` 提醒。
+**当前补丁（2 条）** —— 均作用于 `@juicesharp/rpiv-todo`：
 
-**形态约束**（红线）：只允许「新增函数 + 最小调用点替换」；无触发条件时恒等返回原行为；不碰状态机 / reducer / overlay / replay；`--restore` 必须能还原；上游改段只允许重新定位锚点，不得顺手改逻辑。应用后需在会话内 `/reload` 生效。
+**F1 `todo-settle-nudge`**（`tool/response-envelope.ts`）：todo 工具原先只回报本次动作（`Updated #7 (in_progress → completed)`），不带全局未结算视图；模型漏发终态 `update` 时没有任何提示（实测 2026-09-15：7 项任务的会话中 #3 被跳过未结算，面板停在 6/7）。补丁在**结算动作**（`update`→completed/deleted、`delete`）后若仍有 `in_progress` 残留，就在返回里追加一行 `Unsettled:` 提醒。
+
+**F2 `todo-overlay-cleanup`**（`todo-overlay.ts`）：全部任务结算后，面板的隐藏路径只发非 forced `requestRender()` —— 行被过滤成 0 行，但 widget 槽位不注销、高度不重排，最后一帧 `○ Todos (n/n)` 滞留屏幕直到下一次 todo 工具调用（实测 2026-09-17）。补丁把隐藏后的刷新交回 `update()`（空列表即走 `setWidget(key, undefined)` 标准注销），并追加一次强制重绘。行为验收：`node scripts/probe_todo_overlay_cleanup.mjs`（触发 / 不触发 / 原版对照 三条路径）。
+
+**形态约束**（红线）：只允许「新增函数 + 最小调用点替换」；无触发条件时恒等返回原行为；不碰状态机 / reducer / replay 与渲染分支语义；`--restore` 必须能还原；上游改段只允许重新定位锚点，不得顺手改逻辑。应用后需在会话内 `/reload` 生效。
 
 ## 常见避坑点与故障排查
 
