@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg)](#)
-[![Pi Version](https://img.shields.io/badge/Pi-0.87.0-green.svg)](#)
+[![Pi Version](https://img.shields.io/badge/Pi-0.87.1-green.svg)](#)
 
 > 一个面向 [Pi Agent](https://github.com/badlogic/pi-mono)（`@earendil-works/pi-coding-agent`）的高品质 CLI/TUI 简体中文汉化补丁。
 > **命令名称 100% 保持英文原文**，仅汉化命令注释、参数提示、设置菜单、状态栏与快捷键说明，绝不破坏键盘肌肉记忆与脚本自动化。
@@ -17,7 +17,7 @@
 - **命令保持原文**：`/settings`、`/model`、`/compact`、`/tree` 等所有内置斜杠命令名称严格保留英文，仅汉化对应的功能描述（`description`）与参数提示（`argumentHint`）。
 - **零破坏性与干净基底**：打补丁前自动保留干净的官方原件备份（`.zh-backup`），每次打补丁均基于原始原件执行，杜绝“补丁叠补丁”；支持一键秒级还原回官方原版。
 - **语法安全沙箱**：每次补丁写入后，引擎自动使用 `node --check` 进行 JavaScript 语法树校验，校验未通过则立即原子回滚，绝不产生损坏的半成品文件。
-- **版本严格跟随**：`pi --version` 严格显示上游官方版本号（当前基准 v0.87.0），不自造版本号。
+- **版本严格跟随**：`pi --version` 严格显示上游官方版本号（当前基准 v0.87.1），不自造版本号。
 - **升级通知汉化，但不做自动升级**：启动时的「新版本可用」「插件包可更新」横幅一并汉化（`i18n/ui.json`），`pi update` / `pi update --extensions` 等命令名保持英文；服务端下发的更新说明（`release.note`）保持原文。本项目不建议配自动升级：升级会整体替换包目录使 A 线汉化失效，并使 C / F 线插件补丁的 `source_version` 失配——汉化版的意义就是「升级时机由人掌握，升完立即重打四条线」。
 - **插件简介零侵入**：第三方插件的命令简介汉化走「运行时覆盖 + 字典映射」，不写入任何插件文件，插件升级后无需重新打补丁。
 - **插件渲染文案最小补丁**：插件渲染期硬编码的文案（如欢迎页）没有注册接口可拦截，只能打精确字面量补丁；补丁只动字符串与模板片段，配 `.zh-backup` 干净基底、jiti 加载体检与一键还原。
@@ -240,7 +240,7 @@ pi-zh/
 
 | 组件 | 版本 | 说明 |
 | :--- | :--- | :--- |
-| `@earendil-works/pi-coding-agent` | `v0.87.0` | 当前严格适配版本 |
+| `@earendil-works/pi-coding-agent` | `v0.87.1` | 当前严格适配版本 |
 | 运行环境 | Node.js 20+ / 22+ | 跨 macOS、Linux 与 Windows |
 
 ---

@@ -177,6 +177,71 @@ const hint="  Type to filter \\xB7 Enter to select \\xB7 Esc to go back";
         self.assertNotIn("collapse更新日志", patched)
         self.assertEqual(count, 6, "应恰好命中 6 条通知文案，多一条即为误伤信号")
 
+    def test_diagnostics_contract(self):
+        """验证 CLI 参数报错文案汉化：8 条命中，且 ${} 占位符与 flag 名严格保持原样
+
+        覆盖范围：2026-09-23 补齐 `args.js` 的 diagnostics 错误提示——
+        6 条 0.87.0 既有（--name / --use-theme / --tui-mode / thinking level /
+        Unknown option）+ 2 条 0.87.1 新增（--mode 缺值与非法值），此前从未汉化。
+        红线：`${...}` 模板占位符、flag 名与有效值字面量必须原样保留。
+        """
+        cli = self.i18n["cli"]
+        self.assertGreaterEqual(len(cli.get("diagnostics", {})), 15, "报错文案应不少于 15 条")
+
+        # 高频项：Unknown option 系列（含复数变体与 3 个 for-command 分支）
+        plural_en = '`Unknown option${unknownFlags.length===1?"":"s"}: ${unknownFlags.map(name=>`--${name}`).join(", ")}`'
+        self.assertIn(plural_en, cli["diagnostics"], "复数变体应已入字典")
+        self.assertEqual(
+            cli["diagnostics"][plural_en],
+            '`未知选项: ${unknownFlags.map(name=>`--${name}`).join(", ")}`',
+            "复数逻辑应被移除——中文无单复数，且必须保留嵌套模板表达式",
+        )
+        self.assertIn(
+            '`未知选项 ${arg}（"config" 命令）`',
+            cli["diagnostics"].values(),
+            "for-command 分支应译为「（… 命令）」形态",
+        )
+        # 中频项：双引号串 + 真实换行的跨行模板串（不得误写成 \\n 转义序列）
+        self.assertIn(
+            "--api-key requires a model to be specified via --model, --provider/--model, or --models",
+            cli["diagnostics"],
+        )
+        cross_line_en = '`Invalid models.json schema:\n${errors}\n\nFile: ${path14}`'
+        self.assertIn(cross_line_en, cli["diagnostics"], "跨行模板串 key 必须用真实换行")
+        self.assertNotIn(
+            '`Invalid models.json schema:\\n${errors}\\n\\nFile: ${path14}`',
+            cli["diagnostics"],
+            "不得用 \\n 转义序列形态（与源文件逐字节不符，会静默不命中）",
+        )
+
+        sample_code = (
+            'result.diagnostics.push({ type: "error", message: "--mode requires text, json, or rpc" });\n'
+            'result.diagnostics.push({ type: "error", message: `Invalid mode "${mode}". Valid values: text, json, rpc` });\n'
+            'result.diagnostics.push({ type: "error", message: "--name requires a value" });\n'
+            'result.diagnostics.push({ type: "warning", message: `Invalid thinking level "${level}". Valid values: ${VALID_THINKING_LEVELS.join(", ")}` });\n'
+            'result.diagnostics.push({ type: "error", message: "--use-theme requires a theme name" });\n'
+            'result.diagnostics.push({ type: "error", message: "--tui-mode requires regular or fullscreen" });\n'
+            'result.diagnostics.push({ type: "error", message: `Invalid TUI mode "${mode}". Valid values: regular, fullscreen` });\n'
+            'result.diagnostics.push({ type: "error", message: `Unknown option: ${arg}` });\n'
+        )
+        patched, count = patch_engine.patch_cli_and_ui(sample_code, cli, {})
+        self.assertEqual(count, 8, "应恰好命中 8 条报错文案，多一条即为误伤信号")
+
+        # 1) 汉化生效
+        self.assertIn('"--mode 需要指定 text、json 或 rpc"', patched)
+        self.assertIn('`无效的模式 "${mode}"。有效值: text、json、rpc`', patched)
+        self.assertIn('"--name 需要指定一个值"', patched)
+        self.assertIn('"--use-theme 需要指定主题名称"', patched)
+        self.assertIn('"--tui-mode 需要指定 regular 或 fullscreen"', patched)
+        self.assertIn('`无效的 TUI 模式 "${mode}"。有效值: regular、fullscreen`', patched)
+        self.assertIn('`未知选项: ${arg}`', patched)
+        # 2) 红线：${} 模板占位符（含内嵌 JS 表达式）保持原样
+        self.assertIn('`无效的思考级别 "${level}"。有效值: ${VALID_THINKING_LEVELS.join(", ")}`', patched)
+        self.assertIn('${arg}', patched)
+        # 3) 红线：flag 名与合法值字面量保留英文（命令/参数名锁定原文）
+        self.assertIn('--mode 需要指定 text、json 或 rpc', patched)
+        self.assertIn('--tui-mode 需要指定 regular 或 fullscreen', patched)
+
 
 if __name__ == "__main__":
     unittest.main()

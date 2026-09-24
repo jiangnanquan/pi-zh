@@ -60,5 +60,22 @@
     "End option parsing; treat remaining arguments as messages/files": "结束选项参数解析；后续参数全部作为用户提示词或 @file 输入",
     "Show this help": "显示本帮助说明信息",
     "Show version number": "显示当前安装的版本号"
+  },
+  "diagnostics": {
+    "--mode requires text, json, or rpc": "--mode 需要指定 text、json 或 rpc",
+    "Invalid mode \"${mode}\". Valid values: text, json, rpc": "无效的模式 \"${mode}\"。有效值: text、json、rpc",
+    "--name requires a value": "--name 需要指定一个值",
+    "Invalid thinking level \"${level}\". Valid values: ${VALID_THINKING_LEVELS.join(\", \")}": "无效的思考级别 \"${level}\"。有效值: ${VALID_THINKING_LEVELS.join(\", \")}",
+    "--use-theme requires a theme name": "--use-theme 需要指定主题名称",
+    "--tui-mode requires regular or fullscreen": "--tui-mode 需要指定 regular 或 fullscreen",
+    "Invalid TUI mode \"${mode}\". Valid values: regular, fullscreen": "无效的 TUI 模式 \"${mode}\"。有效值: regular、fullscreen",
+    "Unknown option: ${arg}": "未知选项: ${arg}",
+    "`Unknown option${unknownFlags.length===1?\"\":\"s\"}: ${unknownFlags.map(name=>`--${name}`).join(\", \")}`": "`未知选项: ${unknownFlags.map(name=>`--${name}`).join(\", \")}`",
+    "`Unknown option --${option} for \"${getAuthCommandName(kind)}\".`": "`未知选项 --${option}（\"${getAuthCommandName(kind)}\" 命令）`",
+    "`Unknown option ${arg} for \"config\".`": "`未知选项 ${arg}（\"config\" 命令）`",
+    "`Unknown option ${options.invalidOption} for \"${options.command}\".`": "`未知选项 ${options.invalidOption}（\"${options.command}\" 命令）`",
+    "`Unknown option --${option} for \"${getAuthCommandName(command.kind)}\".`": "`未知选项 --${option}（\"${getAuthCommandName(command.kind)}\" 命令）`",
+    "--api-key requires a model to be specified via --model, --provider/--model, or --models": "--api-key 需要通过 --model、--provider/--model 或 --models 指定模型",
+    "`Invalid models.json schema:\n${errors}\n\nFile: ${path14}`": "`models.json 结构无效:\n${errors}\n\n文件: ${path14}`"
   }
 }

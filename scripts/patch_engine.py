@@ -16,7 +16,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-SUPPORTED_VERSIONS = ["0.85.1", "0.86.1", "0.87.0"]
+SUPPORTED_VERSIONS = ["0.85.1", "0.86.1", "0.87.0", "0.87.1"]
 
 
 def log(msg, level="INFO"):
@@ -206,7 +206,7 @@ def patch_cli_and_ui(content: str, cli_dict: dict, ui_dict: dict) -> tuple[str, 
     """
     replaced_count = 0
     all_literals = {}
-    for sec in ["header", "subcommands", "options"]:
+    for sec in ["header", "subcommands", "options", "diagnostics"]:
         all_literals.update(cli_dict.get(sec, {}))
     all_literals.update(ui_dict.get("exact_literals", {}))
 

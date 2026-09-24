@@ -5,7 +5,7 @@
     {
       "package": "@juicesharp/rpiv-todo",
       "file": "tool/response-envelope.ts",
-      "source_version": "2.10.1",
+      "source_version": "2.11.0",
       "note": "F 线首条：todo 工具『结算后残留』提醒。选点理由：buildToolResult 同时持有 action / params / state / op，是唯一能在一处内看到『本次动作 + 全局任务列表』的地方；该模块是纯函数模块，无副作用，补丁改动面最小（新增 1 个函数 + 1 处调用）。",
       "verify_expect": [
         "settleNudge",
@@ -32,7 +32,7 @@
     {
       "package": "@juicesharp/rpiv-todo",
       "file": "todo-overlay.ts",
-      "source_version": "2.10.1",
+      "source_version": "2.11.0",
       "note": "F 线第二条：面板结算残留清理。选点理由：hideCompletedTasksFromPreviousTurn 是『上一轮 completed 行隐藏』的唯一出口，也是此刻唯一能决定面板是否该注销的位置；改动面为 1 处调用替换（update() + forced render），不触碰状态机 / reducer / replay。",
       "verify_expect": [
         "[pi-zh overlay-cleanup]",
