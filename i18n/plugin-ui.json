@@ -5,7 +5,7 @@
     {
       "package": "pi-powerline-footer",
       "file": "welcome.ts",
-      "source_version": "0.17.2",
+      "source_version": "0.19.0",
       "verify_expect": [
         "欢迎回来",
         "已加载",
@@ -122,7 +122,7 @@
     {
       "package": "pi-powerline-footer",
       "file": "index.ts",
-      "source_version": "0.17.2",
+      "source_version": "0.19.0",
       "note": "插件主入口，不承载汉化文案，只承载用户逐条授权且未被上游吸收的渲染行为补丁。0.17.2 起上游已原生实现两项：editor 边框跟随 pi 思考层级色（#221）、次级详情复用 footer 预留行而不挤占 editor（#217）—— 对应补丁 `editor-chrome-thinking-border` 与 `dock-trim-primary-into-footer` 已退役（退役依据：未打补丁的 0.17.2 上 probe_editor_border.py 紫 6/灰 0 通过、probe_dock_rows.py 末行即状态行通过）。当前仅保留 `welcome-header-eager-shell`：欢迎页先用空数据挂 header 立即上屏，取数完成后再换完整数据 header 重绘。",
       "replacements": [],
       "verify_expect": [],

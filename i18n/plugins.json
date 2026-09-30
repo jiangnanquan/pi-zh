@@ -97,8 +97,8 @@
     },
     "run": {
       "source": "pi-subagents",
-      "en": "Run one subagent through workflowScript: /run agent[output=file] [task] [--bg] [--fork]",
-      "zh": "用 workflowScript 运行单个子代理：/run agent[output=file] [task] [--bg] [--fork]"
+      "en": "Run one subagent through a workflow script: /run agent[output=file] [task] [--bg] [--fork]",
+      "zh": "通过 workflow script 运行单个子代理：/run agent[output=file] [task] [--bg] [--fork]"
     },
     "subagent-cost": {
       "source": "pi-subagents",
@@ -184,6 +184,51 @@
       "source": "pi-subagents",
       "en": "Show or toggle the default-off subagent watchdog",
       "zh": "查看或切换子代理看门狗（默认关闭）"
+    },
+    "agy": {
+      "source": "@tian.zuo/pi-antigravity",
+      "en": "Show agy conversation and persistent-driver status",
+      "zh": "查看 agy 会话与常驻 driver 状态"
+    },
+    "agy-agents": {
+      "source": "@tian.zuo/pi-antigravity",
+      "en": "List configured custom agy agents",
+      "zh": "列出已配置的自定义 agy agent"
+    },
+    "agy-artifacts": {
+      "source": "@tian.zuo/pi-antigravity",
+      "en": "List the agy conversation's artifacts (agent-created files, uploads)",
+      "zh": "列出 agy 会话的产物（agent 创建的文件、上传内容）"
+    },
+    "agy-doctor": {
+      "source": "@tian.zuo/pi-antigravity",
+      "en": "Diagnose binary, models, driver, bridge, and conversation state",
+      "zh": "诊断二进制、模型、driver、bridge 与会话状态"
+    },
+    "agy-models": {
+      "source": "@tian.zuo/pi-antigravity",
+      "en": "Re-discover models from `agy models` and re-register the provider",
+      "zh": "从 `agy models` 重新发现模型并重新注册 provider"
+    },
+    "agy-reset": {
+      "source": "@tian.zuo/pi-antigravity",
+      "en": "Drop the agy conversation and driver; next turn starts fresh",
+      "zh": "丢弃 agy 会话与 driver；下一轮重新开始"
+    },
+    "agy-subagents": {
+      "source": "@tian.zuo/pi-antigravity",
+      "en": "List subagent activity observed on the agy stream (spawns, messages, kills)",
+      "zh": "列出 agy 流中观察到的子代理活动（启动、消息、终止）"
+    },
+    "agy-tasks": {
+      "source": "@tian.zuo/pi-antigravity",
+      "en": "List agy background tasks; `stop <task-id>|stop all` to terminate",
+      "zh": "列出 agy 后台任务；用 `stop <task-id>|stop all` 终止"
+    },
+    "agy-usage": {
+      "source": "@tian.zuo/pi-antigravity",
+      "en": "Show Antigravity model quotas (weekly and 5-hour limits)",
+      "zh": "查看 Antigravity 模型配额（每周与 5 小时限额）"
     }
   }
 }

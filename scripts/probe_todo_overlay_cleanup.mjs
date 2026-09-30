@@ -131,6 +131,11 @@ function buildAliases(piPkg, piRequire) {
 	const piAiCompat = resolveFromPi("@earendil-works/pi-ai/compat") ?? resolveFromPi("@earendil-works/pi-ai");
 	const piAiOauth = resolveFromPi("@earendil-works/pi-ai/oauth");
 	const piAiProviders = resolveFromPi("@earendil-works/pi-ai/providers/all");
+	// typebox 族：pi 的 loader 同样显式别名（host 提供模块）；插件把 typebox 列为
+	// peerDependencies 后 ~/.pi/agent/npm 下无实体包，必须与 pi 装载路径保持一致。
+	const typebox = resolveFromPi("typebox");
+	const typeboxCompile = resolveFromPi("typebox/compile");
+	const typeboxValue = resolveFromPi("typebox/value");
 	const aliases = {
 		"@earendil-works/pi-coding-agent": distIndex,
 		"@mariozechner/pi-coding-agent": distIndex,
@@ -144,6 +149,12 @@ function buildAliases(piPkg, piRequire) {
 		"@earendil-works/pi-ai/compat": piAiCompat,
 		"@earendil-works/pi-ai/oauth": piAiOauth,
 		"@earendil-works/pi-ai/providers/all": piAiProviders,
+		typebox,
+		"typebox/compile": typeboxCompile,
+		"typebox/value": typeboxValue,
+		"@sinclair/typebox": typebox,
+		"@sinclair/typebox/compile": typeboxCompile,
+		"@sinclair/typebox/value": typeboxValue,
 	};
 	for (const [spec, entry] of Object.entries(optional)) {
 		if (entry) aliases[spec] = entry;

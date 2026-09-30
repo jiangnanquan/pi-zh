@@ -114,6 +114,11 @@ function locatePiPackage(explicit) {
  * 复刻 pi 运行时给扩展用的模块别名（见 pi 的 loader.js → getAliases）。
  * 插件源码 import 的是裸包名（@earendil-works/pi-coding-agent 等），
  * 这些包并不在 ~/.pi/agent/npm/node_modules 下，必须显式指向 pi 自带的副本。
+ *
+ * typebox 族同样是 host 提供模块（pi 自带 typebox，loader.js 显式别名）：
+ * 0.99.x 起上游插件（如 @juicesharp/rpiv-todo 2.12.0）把 typebox 从 dependencies
+ * 改为 peerDependencies，~/.pi/agent/npm 下不再有实体包 —— 体检若不同样别名，
+ * 就会把「pi 运行时可正常装载」误判为加载失败。
  */
 function buildAliases(piPkg, piRequire) {
 	const resolveFromPi = (spec) => {
@@ -129,6 +134,9 @@ function buildAliases(piPkg, piRequire) {
 	const piAiCompat = resolveFromPi("@earendil-works/pi-ai/compat") ?? resolveFromPi("@earendil-works/pi-ai");
 	const piAiOauth = resolveFromPi("@earendil-works/pi-ai/oauth");
 	const piAiProviders = resolveFromPi("@earendil-works/pi-ai/providers/all");
+	const typebox = resolveFromPi("typebox");
+	const typeboxCompile = resolveFromPi("typebox/compile");
+	const typeboxValue = resolveFromPi("typebox/value");
 	const aliases = {
 		"@earendil-works/pi-coding-agent": distIndex,
 		"@mariozechner/pi-coding-agent": distIndex,
@@ -142,6 +150,12 @@ function buildAliases(piPkg, piRequire) {
 		"@earendil-works/pi-ai/compat": piAiCompat,
 		"@earendil-works/pi-ai/oauth": piAiOauth,
 		"@earendil-works/pi-ai/providers/all": piAiProviders,
+		typebox,
+		"typebox/compile": typeboxCompile,
+		"typebox/value": typeboxValue,
+		"@sinclair/typebox": typebox,
+		"@sinclair/typebox/compile": typeboxCompile,
+		"@sinclair/typebox/value": typeboxValue,
 	};
 	for (const [spec, entry] of Object.entries(optional)) {
 		if (entry) aliases[spec] = entry;

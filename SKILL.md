@@ -30,7 +30,7 @@ CLI/TUI 展示文本汉化为简体中文，并让第三方插件在 `/` 补全�
 | 11 | 安装预检先于写盘 | 冲突默认拒绝（退出码 2）并列出差异，需显式 `--force-*`（覆盖前自动备份）；只改白名单字段，幂等、可精确回滚、保护用户手工改动 |
 | 12 | 插件功能补丁（维护线 F） | 仅当插件有行为缺陷且无扩展点可用时才打最小功能补丁：用户逐条授权 + `id` / `reason` / `authorized_on` + 「新增函数 + 最小调用点替换」形态 + **无触发条件时恒等回退** + 复用 C 线引擎（`--dict i18n/plugin-logic.json`）；只作用于被授权的那一个插件文件 |
 
-当前适配基准：Pi `0.99.1`（以 `scripts/patch_engine.py` 的 `SUPPORTED_VERSIONS` 为唯一权威）。
+当前适配基准：Pi `0.99.2`（以 `scripts/patch_engine.py` 的 `SUPPORTED_VERSIONS` 为唯一权威）。
 打补丁的**目标文件 24 个**，选择逻辑集中在 `patch_engine.collect_target_files()`，与预检脚本共用同一份清单（读 `.zh-backup` 干净基底，保证打完补丁后选取结果不变）：
 
 - 核心 bundle chunk：按内容标记（`BUILTIN_SLASH_COMMANDS` / `app.interrupt`）选取；
@@ -374,6 +374,7 @@ python3 scripts/patch_plugin_ui.py --dict i18n/plugin-logic.json --restore  # �
 | 欢迎页汉化在插件升级后变回英文 | 插件升级重写了 `welcome.ts`，补丁被覆盖 | C 线属补丁式汉化，重跑 `bash scripts/apply_plugin_ui.sh` 即可幂等重打；先跑 `--check` 看有无漂移 |
 | `--check` 报「未命中（上游可能改了措辞）」 | 上游改了文案或重构了表达式 | 按 C1 更新 `i18n/plugin-ui.json` 的 `en`/`zh` 后重跑 `--check`；`--allow-missing` 仅限应急且需人工复核 |
 | 欢迎页中文串位 / 行宽错乱 | 中文全角宽度未被正确参与布局计算 | C3 体检会断言行宽自洽并自动回滚；若仍异常，先 `--restore` 再排查对应条目 |
+| 体检报 `Cannot find module 'typebox'` | 插件把 typebox 列为 peerDependencies（如 rpiv-todo 2.12.0），实体包不在 `~/.pi/agent/npm`；体检脚本的 jiti 别名未复刻 pi 的 host 模块表（loader.js → getAliases） | 2026-10-01 已修复：`verify_plugin_ts.mjs` 与 `probe_todo_overlay_cleanup.mjs` 的 `buildAliases()` 已补齐 typebox 族；再遇同类缺模块，照 pi 的 `getAliases()` 逐项补别名，勿改插件源码 |
 | 从别处拷贝的 pi-zh 里没有 `.zh-backup` | 插件目录被重装或换机，备份不在版本控制内 | 正常：以当前官方文件为新基底重新备份即可，不影响幂等性 |
 | 升级后 `.zh-backup` 是旧版本的 | 升级方式为增量覆盖而非整目录替换，残留了上一版的干净基底 | **先删除全部 `.zh-backup` 再打补丁**（见 A1 检查命令）；否则新版文件会被旧版基底污染 |
 | 启动时的升级通知变回英文（`Update Available` / `Package Updates Available`） | 上游改了通知文案或渲染表达式 | 通知文案在 `i18n/ui.json` 的 `exact_literals`；按 A2/A3 补条目后重跑 `bash scripts/apply_patch.sh`（幂等重打） |

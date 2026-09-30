@@ -16,7 +16,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-SUPPORTED_VERSIONS = ["0.85.1", "0.86.1", "0.87.0", "0.87.1", "0.99.0", "0.99.1"]
+SUPPORTED_VERSIONS = ["0.85.1", "0.86.1", "0.87.0", "0.87.1", "0.99.0", "0.99.1", "0.99.2"]
 
 # 次级 chunk 的选取规则：chunk 里至少命中 CHUNK_PHRASE_MIN_COUNT 条长度≥ CHUNK_PHRASE_MIN_LEN
 # 的字典键，才纳入目标清单（主 chunk 按内容标记选取，不受此限）。
