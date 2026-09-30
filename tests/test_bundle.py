@@ -327,6 +327,65 @@ class TestInstallContract(BundleCase):
         self.assertFalse((target / "pi-cc-extensions.json").exists())
         self.assertFalse((target / be.STATE_NAME).exists(), "卸载后应删除状态指针")
 
+    def test_extended_local_config_file_is_same(self):
+        """目标机上的字段白名单文件被插件自己补全后，不得再判为冲突（幂等的关键）。
+
+        回归场景（2026-09-30 实测）：`pi-cc-extensions` 扩展启动时会把自己的
+       全部默认字段写回 pi-cc-extensions.json（本机 25 个字段），而包内只有
+       白名单字段 showStartupHeader —— 旧实现按整份文件哈希比对，于是 D 线恒报
+       冲突、退出码 2，与「幂等、可重复执行」的契约相矛盾。
+        """
+        target = self.tmp / "t6"
+        target.mkdir()
+        rc, _ = run_quiet(be.cmd_install, Args(agent_dir=str(target), init=True))
+        self.assertEqual(0, rc)
+
+        cfg_path = target / "pi-cc-extensions.json"
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+        cfg.update({"mode": "on", "enableCustomFooter": True, "previewLines": 3})
+        be.dump_json(cfg_path, cfg)
+
+        rc, out = run_quiet(be.cmd_install, Args(agent_dir=str(target), init=True))
+        self.assertEqual(0, rc, out)
+        self.assertIn("已是目标状态", out, "投影一致即视为 same，不得再报冲突")
+        self.assertEqual(3, json.loads(cfg_path.read_text(encoding="utf-8"))["previewLines"],
+                         "非白名单字段必须原样保留")
+
+    def test_conflict_then_force_files_merges_whitelist_only(self):
+        """白名单字段与包内不一致时仍应拦下；--force-files 只合并白名单字段。"""
+        target = self.tmp / "t7"
+        target.mkdir()
+        cfg_path = target / "pi-cc-extensions.json"
+        be.dump_json(cfg_path, {"showStartupHeader": True, "mode": "on"})
+
+        rc, out = run_quiet(be.cmd_install, Args(agent_dir=str(target), init=True))
+        self.assertEqual(2, rc, "白名单字段不一致必须拦下（需显式 --force-files）")
+        self.assertEqual(True, json.loads(cfg_path.read_text(encoding="utf-8"))["showStartupHeader"],
+                         "冲突拦截后不得写盘")
+
+        rc, out = run_quiet(be.cmd_install, Args(agent_dir=str(target), init=True, force_files=True))
+        self.assertEqual(0, rc, out)
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+        self.assertEqual(False, cfg["showStartupHeader"], "白名单字段应被写入")
+        self.assertEqual("on", cfg["mode"], "本机其它字段不得被整份覆盖")
+
+    def test_uninstall_restores_merged_field_only(self):
+        """合并式文件的回滚：逐字段恢复白名单字段，保留本机自有字段。"""
+        target = self.tmp / "t8"
+        target.mkdir()
+        cfg_path = target / "pi-cc-extensions.json"
+        be.dump_json(cfg_path, {"showStartupHeader": True, "mode": "on"})
+
+        rc, _ = run_quiet(be.cmd_install, Args(agent_dir=str(target), init=True, force_files=True))
+        self.assertEqual(0, rc)
+        self.assertEqual(False, json.loads(cfg_path.read_text(encoding="utf-8"))["showStartupHeader"])
+
+        rc, out = run_quiet(be.cmd_uninstall, Args(agent_dir=str(target), keep_packages=True))
+        self.assertEqual(0, rc, out)
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+        self.assertEqual(True, cfg["showStartupHeader"], "应回滚到安装前的值")
+        self.assertEqual("on", cfg["mode"], "本机自有字段必须保留")
+
     def test_uninstall_protects_manual_edits(self):
         target = self.tmp / "t5"
         target.mkdir()

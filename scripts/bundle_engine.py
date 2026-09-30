@@ -319,6 +319,44 @@ def bundle_file_content(agent_dir: Path, rel: str) -> str:
     return json.dumps(picked, indent=2, ensure_ascii=False) + "\n"
 
 
+def file_digest(agent_dir: Path, rel: str) -> str:
+    """分发文件的「进包形态」摘要 —— 与 manifest 里的 sha256 同口径。
+
+    带字段白名单的文件（见 FILE_JSON_FIELDS）按**投影**哈希：只算白名单字段，
+    本机其它的个人偏好字段不参与比对。
+
+    为什么必须统一：导出 / 漂移检测走投影，而安装预检与卸载曾直接用整份文件的
+    sha256 比对，于是只要目标机上的文件被插件自己补全过字段（如 pi-cc-extensions
+    扩展启动时会写入全部默认项），安装就会**恒报冲突**（退出码 2），脚本自称的
+    「幂等、可重复执行」失效。
+    """
+    return sha256_bytes(bundle_file_content(agent_dir, rel).encode("utf-8"))
+
+
+def write_bundle_file(agent_dir: Path, rel: str) -> dict:
+    """把分发内容写到目标机，返回本次写入的字段记录（供卸载逐字段回滚）。
+
+    - 带字段白名单的文件：**只合并白名单字段**，保留本机其它字段（个人偏好不属于本包）；
+      返回值形如 {"fields_before": {...}, "fields_written": {...}}。
+    - 其余文件：整份复制，返回空 dict。
+    """
+    dest = agent_dir / rel
+    fields = FILE_JSON_FIELDS.get(rel)
+    if not fields:
+        shutil.copy2(BUNDLE_FILES_DIR / rel, dest)
+        return {}
+    incoming = json.loads((BUNDLE_FILES_DIR / rel).read_text(encoding="utf-8"))
+    existing = load_json(dest) if dest.exists() else {}
+    if not isinstance(existing, dict):
+        raise BundleError(f"{rel} 不是 JSON 对象，无法按字段白名单合并：{dest}")
+    written = {key: incoming[key] for key in fields if key in incoming}
+    before = {key: ("absent" if key not in existing else existing[key]) for key in written}
+    for key, value in written.items():
+        existing[key] = value
+    dump_json(dest, existing)
+    return {"fields_before": before, "fields_written": written}
+
+
 def collect_file_entries(agent_dir: Path) -> list:
     """读取待分发文件的内容与哈希，并做绝对路径红线校验"""
     entries = []
@@ -493,7 +531,7 @@ def cmd_check(args):
         if rel not in bundle_files:
             problems.append(f"文件 {rel}：bundle 清单中缺失")
             continue
-        digest = sha256_bytes(bundle_file_content(agent_dir, rel).encode("utf-8"))
+        digest = file_digest(agent_dir, rel)
         if digest != bundle_files[rel]:
             problems.append(f"文件 {rel}：本机已改但未导出")
     for rel in bundle_files:
@@ -552,7 +590,7 @@ def build_install_plan(manifest: dict, agent_dir: Path, skip_packages=False) -> 
         dest = agent_dir / entry["path"]
         if not dest.exists():
             action = "copy"
-        elif sha256_file(dest) == entry["sha256"]:
+        elif file_digest(agent_dir, entry["path"]) == entry["sha256"]:
             action = "same"
         else:
             action = "conflict"
@@ -682,7 +720,13 @@ def cmd_install(args):
             files_by_path[item["path"]]["sha256"] = item["sha256"]
         else:
             files_by_path[item["path"]] = {"path": item["path"], "action": "created", "sha256": item["sha256"]}
-        shutil.copy2(BUNDLE_FILES_DIR / item["path"], dest)
+        if FILE_JSON_FIELDS.get(item["path"]):
+            # 带字段白名单的配置文件：只合并白名单字段，保留本机其它字段
+            record = write_bundle_file(agent_dir, item["path"])
+            if record:
+                files_by_path[item["path"]].update(record)
+        else:
+            shutil.copy2(BUNDLE_FILES_DIR / item["path"], dest)
     log(f"已落地 {sum(1 for i in plan['files'] if i['action'] != 'same')} 个文件", "SUCCESS")
 
     # ---- 安装扩展包（pi install 会同步写 settings.json 的 packages）----
@@ -835,7 +879,38 @@ def cmd_uninstall(args):
         dest = agent_dir / f["path"]
         if not dest.exists():
             continue
-        unchanged = sha256_file(dest) == f.get("sha256", "")
+        # 合并式文件（带字段白名单）：逐字段回滚，保留本机其它字段与用户新增字段
+        if f.get("fields_written"):
+            data = load_json(dest)
+            if not isinstance(data, dict):
+                log(f"跳过文件 {f['path']}（当前不是 JSON 对象，不强行回滚）", "WARN")
+                continue
+            restored_fields, skipped_fields = [], []
+            for key, written in f["fields_written"].items():
+                cur = data.get(key, _MISSING)
+                if cur is _MISSING:
+                    continue
+                if cur != written:
+                    skipped_fields.append(f"{key}（已被手工修改，保留现值）")
+                    continue
+                before = f.get("fields_before", {}).get(key, "absent")
+                if before == "absent":
+                    data.pop(key, None)
+                else:
+                    data[key] = before
+                restored_fields.append(key)
+            dump_json(dest, data)
+            if f["action"] == "created" and not data:
+                # 本包新建的文件：字段全部回滚后若已无内容，整文件删除（不留空 JSON 壳）
+                dest.unlink()
+                log(f"已删除 {f['path']}", "SUCCESS")
+                continue
+            if restored_fields:
+                log(f"已回滚 {f['path']} 的字段：{', '.join(restored_fields)}", "SUCCESS")
+            for s in skipped_fields:
+                log(f"跳过 {f['path']} 的字段 {s}", "WARN")
+            continue
+        unchanged = file_digest(agent_dir, f["path"]) == f.get("sha256", "")
         if not unchanged:
             log(f"跳过文件 {f['path']}（已被手工修改，不覆盖）", "WARN")
             continue
