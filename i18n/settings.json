@@ -151,5 +151,9 @@
   "single-mode": {
     "label": "切换模式",
     "description": "切换为深浅色通用的单一主题模式"
+  },
+  "fullscreen-wheel-scroll-lines": {
+    "label": "全屏滚轮行数",
+    "description": "全屏模式下每次滚轮事件滚动的行数；'auto' 会在终端无法识别快速滚动时自动加速"
   }
 }

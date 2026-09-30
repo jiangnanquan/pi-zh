@@ -8,6 +8,7 @@ pi-zh 单元测试与契约校验
 """
 
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -201,17 +202,23 @@ const hint="  Type to filter \\xB7 Enter to select \\xB7 Esc to go back";
             cli["diagnostics"].values(),
             "for-command 分支应译为「（… 命令）」形态",
         )
-        # 中频项：双引号串 + 真实换行的跨行模板串（不得误写成 \\n 转义序列）
+        # 中频项：双引号串 + 真实换行的跨行模板串（不得误写成 \n 转义序列）
         self.assertIn(
             "--api-key requires a model to be specified via --model, --provider/--model, or --models",
             cli["diagnostics"],
         )
-        cross_line_en = '`Invalid models.json schema:\n${errors}\n\nFile: ${path14}`'
-        self.assertIn(cross_line_en, cli["diagnostics"], "跨行模板串 key 必须用真实换行")
-        self.assertNotIn(
-            '`Invalid models.json schema:\\n${errors}\\n\\nFile: ${path14}`',
-            cli["diagnostics"],
-            "不得用 \\n 转义序列形态（与源文件逐字节不符，会静默不命中）",
+        # 跨行模板串：不写死 minifier 变量名（如 ${path14}/${path10} 随上游构建变化，
+        # 写死就会在升级后静默失效 —— 2026-09-30 的 0.99.1 适配就是这么发现的，
+        # 现由 scripts/check_patch_safety.py --coverage 长期守夜）。
+        schema_keys = [k for k in cli["diagnostics"] if k.startswith("`Invalid models.json schema:")]
+        self.assertEqual(1, len(schema_keys), "跨行模板串 key 应唯一存在")
+        cross_line_en = schema_keys[0]
+        self.assertIn("\n", cross_line_en, "跨行模板串 key 必须用真实换行")
+        self.assertNotIn("\\n", cross_line_en, "不得用 \\n 转义序列形态（与源文件逐字节不符，会静默不命中）")
+        self.assertEqual(
+            re.findall(r"\$\{[^}]*\}", cross_line_en),
+            re.findall(r"\$\{[^}]*\}", cli["diagnostics"][cross_line_en]),
+            "${} 占位符必须与原文逐一对应（含 minifier 变量名）",
         )
 
         sample_code = (
@@ -241,6 +248,84 @@ const hint="  Type to filter \\xB7 Enter to select \\xB7 Esc to go back";
         # 3) 红线：flag 名与合法值字面量保留英文（命令/参数名锁定原文）
         self.assertIn('--mode 需要指定 text、json 或 rpc', patched)
         self.assertIn('--tui-mode 需要指定 regular 或 fullscreen', patched)
+
+    def test_builtin_extension_command_contract(self):
+        """验证内置扩展命令（0.99.0 起 mcp / llama 等）的描述汉化：
+
+        命令名保持英文，仅 description 汉化；同时不能碰 pi.registerCommand 之外的同名文本。
+        """
+        commands = self.i18n["commands"]
+        self.assertIn("mcp", commands, "0.99.0 新增的 /mcp 命令应已入字典")
+
+        sample_code = (
+            '        pi.registerCommand("mcp", {\n'
+            '            description: "Manage MCP servers: sign in, reconnect, enable or disable, and change exposure",\n'
+            '            getArgumentCompletions: (prefix) => {\n'
+            '                const [action] = prefix.trimStart().split(/\\s+/);\n'
+            '                return ["login", "logout", "reconnect"].filter((item) => item.startsWith(action ?? ""));\n'
+            '            },\n'
+            '        });\n'
+        )
+        patched, count = patch_engine.patch_slash_commands(sample_code, commands)
+        self.assertEqual(count, 1, "应恰好命中 1 处内置扩展命令描述")
+        # 命令名与参数值（login/logout/reconnect）必须保持英文
+        self.assertIn('pi.registerCommand("mcp", {', patched)
+        self.assertIn('"login", "logout", "reconnect"', patched)
+        # 仅 description 汉化
+        self.assertIn("管理 MCP 服务器", patched)
+        self.assertNotIn("Manage MCP servers", patched)
+
+        # 压缩格式（编译版 bundle chunk）同样要命中
+        minified = 'pi.registerCommand("mcp",{description:"Manage MCP servers: sign in, reconnect, enable or disable, and change exposure"})'
+        patched_min, count_min = patch_engine.patch_slash_commands(minified, commands)
+        self.assertEqual(count_min, 1, "压缩格式下的 registerCommand 也应命中")
+
+    def test_supported_versions_include_current(self):
+        """适配清单必须包含当前安装的 pi 版本，否则正式模式会拒绝打补丁。"""
+        pkg_dir = patch_engine.locate_pi_package()
+        version = patch_engine.get_installed_version(pkg_dir)
+        self.assertIn(version, patch_engine.SUPPORTED_VERSIONS, f"{version} 应已加入 SUPPORTED_VERSIONS")
+
+
+class TestSafetyAgainstInstalledPi(unittest.TestCase):
+    """依赖本机 pi 安装的红线测试（未安装时跳过）。"""
+
+    def setUp(self):
+        self.i18n = patch_engine.load_i18n_data(REPO_ROOT)
+
+    def test_dict_keys_avoid_logic_values(self):
+        """红线：字典键不得既参与代码判断、又存在未打补丁的精确字面量产者。
+
+        该断言复用 scripts/check_patch_safety.py 的判定口径；没装 pi 的机器上跳过，不阻断单元测试。
+        """
+        sys.path.insert(0, str(REPO_ROOT / "scripts"))
+        try:
+            pkg_dir = patch_engine.locate_pi_package()
+        except Exception as e:  # noqa: BLE001
+            self.skipTest(f"未检测到 pi 安装：{e}")
+
+        import check_patch_safety as cps  # noqa: E402
+
+        dist = pkg_dir / "dist"
+        target_rels = {p.relative_to(dist).as_posix()
+                       for p in patch_engine.collect_target_files(pkg_dir, patch_engine.literal_keys(self.i18n))}
+        blob = cps.read_js_files(dist)
+        keys = cps.collect_literal_keys(self.i18n)
+
+        lits = {rel: cps.literals_of(text) for rel, text in blob.items()}
+        confirmed = self.i18n["ui"].get("confirmed_comparisons", {})
+        offenders = []
+        for key in keys:
+            if key in confirmed:
+                continue  # 已人工核对并登记的跨模式副本（理由与日期记录在字典里）
+            pats = cps.comparison_patterns(key)
+            cmp_target = [rel for rel in target_rels if any(p in blob.get(rel, "") for p in pats)]
+            if not cmp_target:
+                continue
+            outside = [rel for rel, ls in lits.items() if key in ls and rel not in target_rels]
+            if outside:
+                offenders.append((key, cmp_target, outside))
+        self.assertEqual(offenders, [], f"以下字典键参与判断但产者未打补丁（会破坏逻辑）：{offenders}")
 
 
 if __name__ == "__main__":

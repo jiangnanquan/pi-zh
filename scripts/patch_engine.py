@@ -16,7 +16,16 @@ import subprocess
 import sys
 from pathlib import Path
 
-SUPPORTED_VERSIONS = ["0.85.1", "0.86.1", "0.87.0", "0.87.1"]
+SUPPORTED_VERSIONS = ["0.85.1", "0.86.1", "0.87.0", "0.87.1", "0.99.0", "0.99.1"]
+
+# 次级 chunk 的选取规则：chunk 里至少命中 CHUNK_PHRASE_MIN_COUNT 条长度≥ CHUNK_PHRASE_MIN_LEN
+# 的字典键，才纳入目标清单（主 chunk 按内容标记选取，不受此限）。
+# 依据（2026-09-30 实测 0.99.1）：承载具体 TUI 对话框的次级 chunk 都命中多条长文案
+# （信任对话框 2 条、显示图片选择器 2 条、设置列表提示 6 条）；而被第 3 方捆绑库或
+# OAuth 流程顺带命中的 chunk 只有单条长文案（如 'Authentication failed'），
+# 它们不是 TUI 界面，替换只会改到库/流程内部文案，故不纳入。
+CHUNK_PHRASE_MIN_LEN = 20
+CHUNK_PHRASE_MIN_COUNT = 2
 
 
 def log(msg, level="INFO"):
@@ -138,6 +147,19 @@ def patch_slash_commands(content: str, commands_dict: dict) -> tuple[str, int]:
                     content = new_content
                     replaced_count += n
 
+        # 模式 C: 内置扩展注册的命令描述 pi.registerCommand("xxx", { description: "yyy" })
+        # 0.99.0 起 pi 把 mcp / codemode / tool-search / llama 等做成内置扩展，这些命令的
+        # 描述随扩展模块发布（dist/extensions/<name>/index.js），不再集中在 slash-commands.js。
+        # 只替换 description，命令名与参数保持英文原文。
+        if zh_desc:
+            pattern_c = re.compile(
+                r'(registerCommand\(\s*["\']' + re.escape(cmd_name) + r'["\']\s*,\s*\{\s*description\s*:\s*["\'])([^"\']+)(["\'])'
+            )
+            new_content, n = pattern_c.subn(r'\g<1>' + zh_desc + r'\g<3>', content)
+            if n > 0:
+                content = new_content
+                replaced_count += n
+
         # 2. 替换 argumentHint
         if zh_hint:
             pattern_hint = re.compile(
@@ -210,7 +232,10 @@ def patch_cli_and_ui(content: str, cli_dict: dict, ui_dict: dict) -> tuple[str, 
         all_literals.update(cli_dict.get(sec, {}))
     all_literals.update(ui_dict.get("exact_literals", {}))
 
-    for en, zh in all_literals.items():
+    # 按长度降序替换：字典里存在「短键是长键前缀」的组合时（例如 'No models available'
+    # 与 'No models available. '），必须先处理长键；否则短键先把长键的前缀改掉，
+    # 长键就再也命不中，留下中英混排的尾巴。
+    for en, zh in sorted(all_literals.items(), key=lambda kv: -len(kv[0])):
         if " " in en or "(" in en:
             # 包含空格或括号的描述文本，不可能碰撞 JS 标识符，可安全替换
             count = content.count(en)
@@ -276,6 +301,90 @@ def patch_startup_banner(content: str, ui_dict: dict) -> tuple[str, int]:
     return content, replaced_count
 
 
+def clean_text(path: Path) -> str:
+    """读取文件的「干净基底」：存在 `.zh-backup` 时读备份，否则读当前文件。
+
+    为什么重要：A 线是原位替换，文件的英文原文在打完补丁后就消失了。chunk 选取、
+    预检、覆盖率判定都必须基于干净基底，否则会出现「打完补丁 → 文件不再命中字典键 →
+    下次选取时掉出目标清单 → 预检误报残留」的循环假象。
+    """
+    backup = path.with_suffix(path.suffix + ".zh-backup")
+    src = backup if backup.exists() else path
+    try:
+        return src.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return ""
+
+
+def literal_keys(i18n: dict) -> list:
+    """A 线按「字面量整串替换」处理的字典键：cli.* 与 ui.exact_literals。"""
+    keys = []
+    for sec in ("header", "subcommands", "options", "diagnostics"):
+        keys.extend(i18n.get("cli", {}).get(sec, {}).keys())
+    keys.extend(i18n.get("ui", {}).get("exact_literals", {}).keys())
+    return keys
+
+
+def collect_target_files(pkg_dir: Path, literal_keys_list=None) -> list:
+    """收集需要打补丁的目标文件（顺序稳定、无重复）。
+
+    独立成函数，供 apply_patch 与 scripts/check_patch_safety.py（字典键逻辑值用法预检）共用，
+    保证「预检扫描的文件集合」与「实际写盘的文件集合」永远一致。
+
+    literal_keys_list 为 None 时只按内容标记选 chunk（兼容旧调用）；传入字典键列表后，
+    会额外纳入「承载具体 TUI 对话框」的次级 chunk（见 CHUNK_PHRASE_MIN_LEN 的说明）。
+    """
+    target_files = []
+    phrase_keys = [k for k in (literal_keys_list or []) if len(k) >= CHUNK_PHRASE_MIN_LEN]
+
+    # 1. 核心运行时 bundle chunk (包含所有交互逻辑)
+    chunks_dir = pkg_dir / "dist" / "bundle" / "chunks"
+    if chunks_dir.exists():
+        for chunk in chunks_dir.glob("chunk-*.js"):
+            content_sample = clean_text(chunk)
+            is_main = ("BUILTIN_SLASH_COMMANDS" in content_sample
+                       or "app.interrupt" in content_sample)
+            is_ui_chunk = sum(1 for k in phrase_keys if k in content_sample) >= CHUNK_PHRASE_MIN_COUNT
+            if is_main or is_ui_chunk:
+                target_files.append(chunk)
+
+    # 2. 模块级文件
+    modular_candidates = [
+        pkg_dir / "dist" / "core" / "slash-commands.js",
+        pkg_dir / "dist" / "core" / "keybindings.js",
+        pkg_dir / "dist" / "cli" / "args.js",
+        pkg_dir / "dist" / "modes" / "interactive" / "interactive-mode.js",
+        pkg_dir / "dist" / "modes" / "interactive" / "components" / "model-selector.js",
+        pkg_dir / "dist" / "modes" / "interactive" / "components" / "settings-selector.js",
+        pkg_dir / "dist" / "modes" / "interactive" / "components" / "settings-submenu.js",
+        pkg_dir / "dist" / "modes" / "interactive" / "components" / "scoped-models-selector.js",
+        pkg_dir / "dist" / "modes" / "interactive" / "components" / "oauth-selector.js",
+        # 0.99.0 新增展示面：资源来源标签（config-selector）与首次设置里的系统主题说明
+        # （first-time-setup）。新增组件文件前必须先跑 scripts/check_patch_safety.py，
+        # 确认字典键在该文件里没有「被当作逻辑值」的用法（如 message == "Request was aborted"）。
+        pkg_dir / "dist" / "modes" / "interactive" / "components" / "config-selector.js",
+        pkg_dir / "dist" / "modes" / "interactive" / "components" / "first-time-setup.js",
+        # 信任对话框选项标签（纯展示：逻辑另由 trusted / updates 字段承载）
+        pkg_dir / "dist" / "core" / "trust-manager.js",
+        # 会话选择器（All / Current Folder 标签）与显示图片选择器
+        pkg_dir / "dist" / "modes" / "interactive" / "components" / "session-selector.js",
+        pkg_dir / "dist" / "modes" / "interactive" / "components" / "show-images-selector.js",
+    ]
+
+    # 3. 内置扩展：0.99.0 起 mcp / codemode / tool-search / llama 以扩展模块形态发布，
+    #    其斜杠命令描述与对话框文案只存在于 dist/extensions/<name>/{index,ui}.js。
+    for pattern in ("*/index.js", "*/ui.js"):
+        modular_candidates.extend(sorted((pkg_dir / "dist" / "extensions").glob(pattern)))
+
+    seen = set()
+    for mf in modular_candidates:
+        if mf.exists() and mf not in seen:
+            seen.add(mf)
+            target_files.append(mf)
+
+    return target_files
+
+
 def apply_patch(pkg_dir: Path, repo_root: Path, force=False, dry_run=False):
     version = get_installed_version(pkg_dir)
     log(f"目标包路径: {pkg_dir}")
@@ -293,32 +402,7 @@ def apply_patch(pkg_dir: Path, repo_root: Path, force=False, dry_run=False):
     i18n = load_i18n_data(repo_root)
 
     # 寻找需要处理的目标文件
-    target_files = []
-    # 1. 核心运行时 bundle chunk (包含所有交互逻辑)
-    chunks_dir = pkg_dir / "dist" / "bundle" / "chunks"
-    if chunks_dir.exists():
-        for chunk in chunks_dir.glob("chunk-*.js"):
-            # 筛选包含 BUILTIN_SLASH_COMMANDS 或 app.interrupt 的核心 chunk
-            with open(chunk, "r", encoding="utf-8", errors="ignore") as f:
-                content_sample = f.read()
-                if "BUILTIN_SLASH_COMMANDS" in content_sample or "app.interrupt" in content_sample:
-                    target_files.append(chunk)
-
-    # 2. 模块级文件
-    modular_candidates = [
-        pkg_dir / "dist" / "core" / "slash-commands.js",
-        pkg_dir / "dist" / "core" / "keybindings.js",
-        pkg_dir / "dist" / "cli" / "args.js",
-        pkg_dir / "dist" / "modes" / "interactive" / "interactive-mode.js",
-        pkg_dir / "dist" / "modes" / "interactive" / "components" / "model-selector.js",
-        pkg_dir / "dist" / "modes" / "interactive" / "components" / "settings-selector.js",
-        pkg_dir / "dist" / "modes" / "interactive" / "components" / "settings-submenu.js",
-        pkg_dir / "dist" / "modes" / "interactive" / "components" / "scoped-models-selector.js",
-        pkg_dir / "dist" / "modes" / "interactive" / "components" / "oauth-selector.js",
-    ]
-    for mf in modular_candidates:
-        if mf.exists():
-            target_files.append(mf)
+    target_files = collect_target_files(pkg_dir, literal_keys(i18n))
 
     log(f"共发现 {len(target_files)} 个目标补丁文件。")
 

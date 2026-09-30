@@ -72,7 +72,13 @@
   "reload": {
     "description": "重新加载快捷键、扩展、技能、提示词模版与上下文配置"
   },
+  "mcp": {
+    "description": "管理 MCP 服务器：登录、重连、启用/禁用与调整工具暴露级别"
+  },
   "quit": {
     "description": "退出 Pi"
+  },
+  "llama": {
+    "description": "管理 llama.cpp 路由模型"
   }
 }

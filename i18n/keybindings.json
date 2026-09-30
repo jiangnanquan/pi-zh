@@ -15,7 +15,7 @@
   "app.message.copy": "复制消息到剪贴板",
   "app.message.followUp": "排队跟进消息（当前轮次完成后发送）",
   "app.message.dequeue": "取回排队中的消息",
-  "app.clipboard.pasteImage": "从剪贴板粘贴图片（降级为文本）",
+  "app.clipboard.pasteImage": "粘贴 macOS 文件、图片或剪贴板文本",
   "app.session.new": "开启新会话",
   "app.session.tree": "打开会话分支树",
   "app.session.fork": "从历史消息派生会话",

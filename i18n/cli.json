@@ -16,7 +16,8 @@
     "List installed extensions from settings": "列出配置中已安装的所有扩展",
     "Open TUI to enable/disable package resources (Tab switches scope)": "打开 TUI 界面以启用/禁用包资源 (按 Tab 键切换范围)",
     "Print credentials or check provider readiness": "打印服务商凭据或检查就绪状态",
-    "Show help for install/remove/uninstall/update/list/config/auth": "显示 install/remove/uninstall/update/list/config/auth 等子命令帮助"
+    "Show help for install/remove/uninstall/update/list/config/auth/mcp": "显示 install/remove/uninstall/update/list/config/auth/mcp 等子命令帮助",
+    "Check MCP servers, sign in to or out of OAuth servers": "检查 MCP 服务器，登录或登出 OAuth 认证"
   },
   "options": {
     "Provider name (default: google)": "模型服务商名称 (默认: google)",
@@ -40,8 +41,8 @@
     "Comma-separated allowlist of tool names to enable": "要启用的工具白名单列表 (逗号分隔)",
     "Comma-separated denylist of tool names to disable": "要禁用的工具黑名单列表 (逗号分隔)",
     "Set thinking level: off, minimal, low, medium, high, xhigh, max": "设置模型思考级别: off, minimal, low, medium, high, xhigh, max",
-    "Load an extension file (can be used multiple times)": "加载指定的扩展模块文件 (可指定多次)",
-    "Disable extension discovery (explicit -e paths still work)": "禁用扩展自动扫描 (显式通过 -e 指定的扩展仍有效)",
+    "Load an extension file or builtin:<name> (can be used multiple times)": "加载指定的扩展模块文件或 builtin:<name> 内置扩展 (可指定多次)",
+    "Disable extension discovery and built-in extensions (explicit -e paths still work)": "禁用扩展自动扫描与内置扩展 (显式通过 -e 指定的扩展仍有效)",
     "Load a skill file or directory (can be used multiple times)": "加载指定的技能文件或目录 (可指定多次)",
     "Disable skills discovery and loading": "禁用技能目录的自动扫描与加载",
     "Load a prompt template file or directory (can be used multiple times)": "加载指定的提示词模版文件或目录 (可指定多次)",
@@ -76,6 +77,9 @@
     "`Unknown option ${options.invalidOption} for \"${options.command}\".`": "`未知选项 ${options.invalidOption}（\"${options.command}\" 命令）`",
     "`Unknown option --${option} for \"${getAuthCommandName(command.kind)}\".`": "`未知选项 --${option}（\"${getAuthCommandName(command.kind)}\" 命令）`",
     "--api-key requires a model to be specified via --model, --provider/--model, or --models": "--api-key 需要通过 --model、--provider/--model 或 --models 指定模型",
-    "`Invalid models.json schema:\n${errors}\n\nFile: ${path14}`": "`models.json 结构无效:\n${errors}\n\n文件: ${path14}`"
+    "`Invalid models.json schema:\n${errors}\n\nFile: ${path10}`": "`models.json 结构无效:\n${errors}\n\n文件: ${path10}`",
+    "Auth checks require --provider <provider> or --model <model>": "认证检查需要通过 --provider <provider> 或 --model <model> 指定",
+    "Auth commands only accept --provider and --model": "认证类子命令只接受 --provider 与 --model",
+    "Credential printing requires --provider <provider> or --model <model>": "打印凭据需要通过 --provider <provider> 或 --model <model> 指定"
   }
 }
