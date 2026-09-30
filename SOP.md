@@ -128,14 +128,21 @@ find "$PI_PKG/dist" -name "*.zh-backup"
 SUPPORTED_VERSIONS = ["0.85.1", "0.86.0"]
 ```
 
-### 步骤 3：执行 Dry-run 检测命中率
+### 步骤 3：预检 + Dry-run 检测命中率
 
 ```bash
+# ① 只读预检（不写盘）：字典残留键 + 逻辑值冲突
+python3 scripts/check_patch_safety.py
+
+# ② 命中数（引擎只报命中数，报不出「旧键失配 / 新文案未覆盖」）
 python3 scripts/patch_engine.py --dry-run
 ```
 
-检查控制台输出的替换数量与未命中项。如果官方新增了命令或快捷键，可在 `i18n/commands.json` 或 `i18n/keybindings.json` 中增补词条；
-启动升级通知（「新版本可用」/「插件包可更新」横幅）的文案在 `i18n/ui.json` 的 `exact_literals`。
+- `check_patch_safety.py --coverage` 列出一次都没命中的残留键（上游改措辞 / 删设置项 / 改命令名时会出现），逐条确认是「删掉旧键」还是「换新键」。
+- `check_patch_safety.py --safety` 报出被当作逻辑值的字典键（`x === "key"`、`case`、映射键）：若其精确字面量产者在未打补丁的文件里，汉化会让判断永远为假 —— **从字典移除该键**（宁可留英文），退出码 1。
+- 官方新增命令、快捷键或设置项时，先补齐对应字典：`i18n/commands.json` / `i18n/keybindings.json` / `i18n/settings.json` / `i18n/cli.json` / `i18n/ui.json`；内置扩展命令（`/mcp` 这类）由引擎「模式 C」处理，只需把命令名与描述加进 `commands.json`。
+- 升级通知（「新版本可用」/「插件包可更新」横幅）的文案在 `i18n/ui.json` 的 `exact_literals`。
+- 新增展示面导致要加目标文件时，先过 `--safety` 预检，再登记到 `patch_engine.collect_target_files()`。
 
 ### 步骤 4：全量应用与冒烟验收
 

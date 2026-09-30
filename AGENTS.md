@@ -12,7 +12,7 @@
 4. **版本跟随**：官方发布新版后，以升级官方包为先导，更新 `patch_engine.py` 中的适配版本号并增量补齐未翻译条目。
 5. **插件命令简介零侵入**：第三方插件的斜杠命令简介（`registerCommand` 的 `description`）一律走「运行时覆盖 + `i18n/plugins.json` 字典映射」，严禁改写 `~/.pi/agent/npm/node_modules` 内的任何插件文件。
 6. **插件渲染文案最小补丁**：插件用字面量直接渲染的 TUI 文案（如 `pi-powerline-footer` 的欢迎页）没有任何注册接口可拦截，只能走「精确字面量补丁 + 干净基底 `.zh-backup` + 写盘后强制体检 + 一键还原」（维护线 C）。文案补丁只允许命中字符串字面量与模板片段。
-7. **行为补丁授权通道**：C 线原则上不改插件行为；确有必要时（当前 3 条：editor 边框跟随思考层级色、欢迎页空壳先行、dock 去空白占位行），必须走 `i18n/plugin-ui.json` 的 `code_patches`，且同时满足四条：① 用户逐条明确授权并记录 `authorized_on`；② 写明 `reason`（为什么必须改、依据是什么）；③ 保留原实现作为回退分支，不删原逻辑；④ 与文案共用同一套预检、jiti 体检与 `--restore`。未授权的逻辑改动一律视为红线违规。
+7. **行为补丁授权通道**：C 线原则上不改插件行为；确有必要时（**当前 1 条**：欢迎页空壳先行；editor 边框跟随思考层级色、dock 去空白占位行两条已于 powerline 0.17.2 退役——上游已原生实现），必须走 `i18n/plugin-ui.json` 的 `code_patches`，且同时满足四条：① 用户逐条明确授权并记录 `authorized_on`；② 写明 `reason`（为什么必须改、依据是什么）；③ 保留原实现作为回退分支，不删原逻辑；④ 与文案共用同一套预检、jiti 体检与 `--restore`。未授权的逻辑改动一律视为红线违规。
 8. **懒人包只分发「协同必需」**：`bundle/` 的内容由 `scripts/bundle_engine.py` 的白名单定义产生（`SETTINGS_WHITELIST` + `BUNDLE_FILES`），判据是「**非默认值 + 非冲突解决 = 不带**」；凭据、会话数据、模型层配置、个人 skill / Agent / 注入词永不进包。
 9. **导出单向**：维护者本机 `~/.pi/agent` 是 SSOT，`bundle/` 是派生物；**永不从仓库反向覆盖本机**。导出过程必须机器可核对、结果可复现，且产物不得含本机绝对路径。
 10. **安装预检先于写盘**：冲突默认拒绝（退出码 2）并列出差异，需显式 `--force-settings` / `--force-files`（覆盖前自动备份）；只改白名单字段，幂等、可精确回滚，并保护用户的手工改动。
@@ -46,7 +46,7 @@
 只有满足以下全部验收项，一次针对 `pi-zh` 的维护或升级才被判定为合格交付：
 
 1. `python3 tests/test_patch.py`、`python3 tests/test_plugin_i18n.py`、`node tests/test_plugin_i18n.mjs`、`python3 tests/test_plugin_ui.py`、`python3 tests/test_bundle.py` 单元测试全部通过。
-2. `bash scripts/apply_patch.sh` 与 `bash scripts/apply_plugin_ui.sh` 执行无报错，补丁成功应用（引擎自带的 `node --check` / jiti 校验通过，无 `SyntaxError`）；`bash scripts/check_bundle.sh` 报告 `bundle/` 与维护者本机无漂移。
+2. `bash scripts/apply_patch.sh` 与 `bash scripts/apply_plugin_ui.sh` 执行无报错，补丁成功应用（引擎自带的 `node --check` / jiti 校验通过，无 `SyntaxError`）；`python3 scripts/check_patch_safety.py` 报「无危险用法」且覆盖率 100%（字典无残留键）；`bash scripts/check_bundle.sh` 报告 `bundle/` 与维护者本机无漂移。
 3. `bash scripts/smoke_test.sh` 五个 TEST 全部通过：
    - `pi --version` 正常输出官方版本；
    - `pi --help` 正常展示中文说明与中文参数；
@@ -54,8 +54,8 @@
    - 插件简介运行时覆盖扩展的端到端契约测试通过；
    - 插件 UI 汉化（C 线）字典无漂移，且欢迎页组件可加载、渲染行宽自洽。
 4. 一键还原可用：`bash scripts/apply_patch.sh --restore` 能还原官方原版（`pi --help` 恢复英文），`bash scripts/install_plugin_i18n.sh --uninstall` 能卸载插件简介汉化，`bash scripts/apply_plugin_ui.sh --restore` 能还原插件 UI 英文，`bash scripts/install_bundle.sh --uninstall --keep-packages` 能精确回滚扩展环境（配置字段恢复原值、本包文件删除或还原）。
-5. 行为补丁（`code_patches`）可回归验证：
-   - `python3 scripts/probe_editor_border.py` 判定生效（editor 宽度 ≥100 列的紫色 thinking 边框行 ≥4 且多于同宽度灰行；基线：未打补丁 紫 2 / 灰 4，已打补丁 紫 6 / 灰 0）；
-   - `python3 scripts/probe_dock_rows.py` 判定生效（屏幕最后一行即主状态行、无重复渲染、无回显行；`--restore` 后同一探针应判定回退：状态行之后仍有 1 行空壳占位）。
+5. 已退役行为补丁的**上游行为回归哨兵**（不是「补丁是否生效」的验收——那两条补丁已于 2026-09-22 退役，改由上游原生实现）：
+   - `python3 scripts/probe_editor_border.py` 判定「editor 边框仍跟随 pi 思考层级色」（editor 宽度 ≥100 列的紫色 thinking 边框行 ≥4 且多于同宽度灰行；**未打补丁就应通过**，回退即说明上游改了行为，需重新评估是否要 C 线补丁）；
+   - `python3 scripts/probe_dock_rows.py` 判定「屏幕最后一行即主状态行、无重复渲染、无回显行」（同理：未打补丁即应通过；上游回归时才需重新评估 dock 类补丁）。
 6. 代码与配置中无敏感凭据、个人路径或测试脏文件残留。
 7. 功能补丁（维护线 F）可回归验证：`python3 scripts/patch_plugin_ui.py --dict i18n/plugin-logic.json --check` 全部命中；`--apply` 后 jiti 体检通过（含 `verify_expect` 源码标记），且触发 / 不触发两条路径实测符合预期；`--restore` 能还原官方原版并清理备份。

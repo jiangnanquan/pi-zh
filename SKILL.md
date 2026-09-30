@@ -1,6 +1,6 @@
 ---
 name: q-zh-pi
-description: Pi Agent CLI（@earendil-works/pi-coding-agent）终端界面简体中文汉化、第三方插件简介运行时覆盖、插件渲染文案（欢迎页）补丁，以及「扩展协同环境懒人包」的安装（D 线）与导出（E 线）。核心工作流：基于干净备份安全打补丁 → node --check / jiti 加载语法校验 → 插件简介零侵入软链字典 → 五项冒烟验收；支持上游发版后增量适配与一键还原官方英文，版本号严格跟随官方。适用场景：「汉化 pi」「更新 pi 汉化」「pi 汉化失效」「检查 pi 汉化状态」「还原 pi 官方英文」「插件简介变回英文了」「汉化欢迎页」「欢迎页变回英文」「升级提示变回英文了」「装 pi 扩展环境」「新机器配 pi」「pi 启动卡顿」「状态栏不显示」「扩展打架」。红线约定：只汉化 CLI/TUI 展示文本（命令描述、参数提示、设置菜单、状态栏、启动升级通知、插件简介、插件欢迎页文案），命令名与 flags 锁定英文原文，不碰模型请求 payload、上下文管理与协议逻辑；插件渲染行为（含布局）只在用户逐条授权下走 code_patches 通道（当前 1 条：欢迎页空壳先行；editor 边框跟随思考色与 dock 去空白占位行已于 powerline 0.17.2退役——上游已原生实现）；懒人包只分发「协同必需」的扩展清单与配置，凭据、会话数据、个人 skill / Agent / 注入词永不进包。
+description: Pi CLI 界面汉化、插件简介覆盖与渲染补丁，兼「扩展协同环境懒人包」安装（D 线）/ 导出（E 线）。适用场景：「汉化 pi」「更新/检查 pi 汉化」「pi 汉化失效」「还原官方英文」「插件简介·欢迎页·升级提示变回英文」「装 pi 扩展环境」「新机器配 pi」「pi 启动卡顿」「状态栏不显示」「扩展打架」。红线：只汉化 UI 展示文本，命令名与 flags 锁英文，不碰 payload、上下文管理与协议逻辑；插件渲染改写须逐条授权；懒人包不含凭据、会话数据、个人 skill / Agent / 注入词。细节见正文。
 ---
 
 # Pi Agent CLI 汉化（q-zh-pi）
@@ -30,7 +30,13 @@ CLI/TUI 展示文本汉化为简体中文，并让第三方插件在 `/` 补全�
 | 11 | 安装预检先于写盘 | 冲突默认拒绝（退出码 2）并列出差异，需显式 `--force-*`（覆盖前自动备份）；只改白名单字段，幂等、可精确回滚、保护用户手工改动 |
 | 12 | 插件功能补丁（维护线 F） | 仅当插件有行为缺陷且无扩展点可用时才打最小功能补丁：用户逐条授权 + `id` / `reason` / `authorized_on` + 「新增函数 + 最小调用点替换」形态 + **无触发条件时恒等回退** + 复用 C 线引擎（`--dict i18n/plugin-logic.json`）；只作用于被授权的那一个插件文件 |
 
-当前适配基准：Pi `0.87.1`（以 `scripts/patch_engine.py` 的 `SUPPORTED_VERSIONS` 为唯一权威）。
+当前适配基准：Pi `0.99.1`（以 `scripts/patch_engine.py` 的 `SUPPORTED_VERSIONS` 为唯一权威）。
+打补丁的**目标文件 24 个**，选择逻辑集中在 `patch_engine.collect_target_files()`，与预检脚本共用同一份清单（读 `.zh-backup` 干净基底，保证打完补丁后选取结果不变）：
+
+- 核心 bundle chunk：按内容标记（`BUILTIN_SLASH_COMMANDS` / `app.interrupt`）选取；
+- 次级 chunk：至少命中 2 条长度 ≥ 20 的字典键（即承载具体 TUI 对话框的 chunk；单条长文案的库/OAuth chunk 不选）；
+- 模块级文件：`slash-commands` / `keybindings` / `args` / `interactive-mode` 等 12 个；
+- 内置扩展：`dist/extensions/*/index.js` 与 `*/ui.js`（命令描述走「模式 C」）。
 
 ## 快速开始（一键命令）
 
@@ -68,6 +74,7 @@ bash scripts/smoke_test.sh                        # 五项冒烟：版本号 / �
 bash scripts/apply_patch.sh --status              # 本体汉化状态：官方原版 or 已应用（统计 .zh-backup）
 bash scripts/install_plugin_i18n.sh --status      # 插件简介状态：软链健康度 + 字典覆盖数 + 与已装插件差异
 python3 scripts/scan_plugin_commands.py --check   # 插件简介漂移检查：新增 / 原文漂移 / 字典残留
+python3 scripts/check_patch_safety.py             # A 线预检：字典覆盖率（残留键）+ 逻辑值冲突（字典键被当判断值用）
 bash scripts/apply_plugin_ui.sh --check           # 插件 UI 文案漂移检查：字典是否全部命中（不写盘）
 bash scripts/apply_plugin_ui.sh --status          # 插件 UI 汉化状态：官方原版 or 已汉化（备份完好）
 python3 scripts/patch_plugin_ui.py --dict i18n/plugin-logic.json --check   # F 线漂移检查：功能补丁锚点是否仍命中（不写盘）
@@ -126,8 +133,14 @@ SUPPORTED_VERSIONS = ["0.85.1", "0.86.0"]
 python3 scripts/patch_engine.py --dry-run
 ```
 
-- 核对替换数量与未命中项；官方新增命令、快捷键或设置项时，先补齐对应字典：
+- 核对替换数量；官方新增命令、快捷键或设置项时，先补齐对应字典：
   `i18n/commands.json` / `i18n/keybindings.json` / `i18n/settings.json` / `i18n/cli.json` / `i18n/ui.json`。
+- **dry-run 只报命中数，报不出「旧键失配 / 新文案未覆盖」**，所以新版适配还要跑两侧预检：
+  - **覆盖率**：`python3 scripts/check_patch_safety.py --coverage` —— 列出一次都没命中的残留键；
+  - **新增文案盘点**：拉一份旧版实包做结构化差分（`npm pack @earendil-works/pi-coding-agent@<旧版本>`，对比帮助模板 / 命令表 / 设置项 / 快捷键四张表），或直接跑全 dist 的界面文案集合差分；
+  - **逻辑值冲突**：`python3 scripts/check_patch_safety.py --safety` —— 字典键若参与代码判断（如 `err !== "Login cancelled"`）而其精确字面量产者在未打补丁的文件里，汉化会让判断永远为假，**必须从字典移除该键**（宁可留英文）。
+- **新增目标文件前**先过 `--safety` 预检，确认字典键在该文件里没有「被当作逻辑值」的用法（反例：`components/assistant-message.js` 拿 `"Request was aborted"` 做判断，产者在未打补丁的 SDK 里 —— 该文件不得入清单）；登记位置在 `patch_engine.collect_target_files()`。
+- 内置扩展（`dist/extensions/*/index.js`）的斜杠命令描述由 `patch_slash_commands` 的「模式 C」处理（`pi.registerCommand("x", { description: "…" })`），只需把命令名与描述加进 `i18n/commands.json`。
 - 若报「版本不在已知适配清单」，返回 A2；`--force` 只是应急逃生舱，使用前必须说明理由并人工复核 dry-run 结果。
 
 **A4. 全量应用并验收**
@@ -429,7 +442,8 @@ python3 scripts/probe_dock_rows.py                 # ⑤ 行为补丁回归：�
   - `README.md` — 使用者视角说明（依赖、手动安装、卸载）
 - **执行脚本（`scripts/`）**
   - `apply_patch.sh` — 一键应用 / 状态 / 还原 / dry-run 入口（A 线）
-  - `patch_engine.py` — 补丁引擎（安全匹配、备份管理、`node --check` 校验、`SUPPORTED_VERSIONS`）
+  - `patch_engine.py` — 补丁引擎（安全匹配、备份管理、`node --check` 校验、`SUPPORTED_VERSIONS`、`collect_target_files()`）
+  - `check_patch_safety.py` — A 线只读预检（覆盖率：字典残留键；安全性：字典键参与代码判断时的产者一致性）
   - `install_plugin_i18n.sh` — 插件简介汉化：安装 / 状态 / 卸载（B 线）
   - `scan_plugin_commands.py` — 插件命令扫描与翻译漂移检查
   - `apply_plugin_ui.sh` — 插件 UI 汉化入口：应用 / 检查 / 状态 / 还原（C 线）
