@@ -2,7 +2,7 @@
   "schema": 1,
   "name": "pi 扩展协同环境",
   "description": "一套验证过可协同工作的 pi 扩展组合 + 汉化入口（由 pi-zh 维护线 E 从维护者本机导出）",
-  "exported_at": "2026-09-22",
+  "exported_at": "2026-10-01",
   "exported_by": "pi-zh/scripts/export_bundle.sh（E 线：本机白名单提取）",
   "packages": [
     {
@@ -36,6 +36,10 @@
     {
       "spec": "npm:@narumitw/pi-btw",
       "note": "旁支提问（/btw：问一个小问题但不写入主对话上下文）"
+    },
+    {
+      "spec": "npm:@tian.zuo/pi-antigravity",
+      "note": "在 pi 内使用 Antigravity（agy）模型（agy stream-json 常驻 driver，pi 作为 UI）；需本机安装 agy CLI"
     }
   ],
   "settings": {
@@ -105,8 +109,8 @@
     },
     {
       "path": "extensions/context-bar.ts",
-      "bytes": 6593,
-      "sha256": "cb7937e2e3ea2dfccd9274e11737935933b98690b2bf66ed1a95a5c13122487c"
+      "bytes": 11974,
+      "sha256": "a4c7e24a5189f26adb089073f1017feb217e42f483820a49d03725f9fd436908"
     },
     {
       "path": "extensions/ds-balance.ts",
@@ -135,6 +139,10 @@
     {
       "path": "extensions/plugin-i18n.ts",
       "reason": "由 B 线机制安装（install_plugin_i18n.sh 建软链），不随包分发"
+    },
+    {
+      "path": "extensions/antigravity-lean.ts",
+      "reason": "本机专用（用户 2026-10-01 拍板归入 skip）：为当前 Pi 会话启用的技能生成 agy 进程专用 agent，依赖本机 agy 环境与个人工作流，不分发"
     },
     {
       "path": "auth.json",
@@ -231,6 +239,11 @@
       "target": "extensions/ds-balance.ts",
       "requires": "DeepSeek 凭据（provider=deepseek 或 DEEPSEEK_API_KEY）",
       "behavior": "扩展自守卫：活动 provider 非 deepseek 或处于非交互模式时不请求余额、不渲染该段"
+    },
+    {
+      "target": "npm:@tian.zuo/pi-antigravity",
+      "requires": "本机安装 Google Antigravity CLI（agy）并已登录",
+      "behavior": "无 agy 时该插件的模型线路与 /agy-* 命令不可用；pi 与其它扩展正常启动（agy 进程按需拉起）"
     }
   ]
 }

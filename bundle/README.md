@@ -59,7 +59,7 @@ bash scripts/install_bundle.sh --force-settings --force-files   # 覆盖前自�
 
 | 类别 | 内容 | 为什么必须带 |
 | :--- | :--- | :--- |
-| 扩展 | `manifest.json` 的 `packages`（8 个） | 扩展清单本体 |
+| 扩展 | `manifest.json` 的 `packages`（9 个） | 扩展清单本体 |
 | 配置 | `quietStartup: true` | 不带则 cc 清空 header、foot 异步填充，重现约 660ms 启动空窗 |
 | 配置 | `tuiMode: "fullscreen"` | CC 扩展 fullscreen 交互（单击展开 / hover 高亮 / 回到底部）的前提 |
 | 配置 | `powerline.customItems` + `layout` | 不带则自研扩展装了也不显示——状态段须在此注册 |
@@ -80,7 +80,7 @@ bash scripts/install_bundle.sh --force-settings --force-files   # 覆盖前自�
 
 ## 不装什么（结构性排除）
 
-`manifest.json` 的 `skip` 段列了全部排除项及原因，包括：`auth.json`（凭据）、`sessions/` / `missions/`（数据）、`npm/`（由 `packages` 清单重建）、`models.json`（模型层）、`trust.json`（含本机路径）、`extensions/herdr-agent-state.ts` 与 `extensions/otty-integration.ts`（外部工具生成，目标机器会自行生成）等。
+`manifest.json` 的 `skip` 段列了全部排除项及原因，包括：`auth.json`（凭据）、`sessions/` / `missions/`（数据）、`npm/`（由 `packages` 清单重建）、`models.json`（模型层）、`trust.json`（含本机路径）、`extensions/herdr-agent-state.ts` 与 `extensions/otty-integration.ts`（外部工具生成，目标机器会自行生成）、`extensions/antigravity-lean.ts`（本机专用 agy 技能桥，依赖本机 agy 环境）等。
 
 ## 外部依赖
 
@@ -88,6 +88,7 @@ bash scripts/install_bundle.sh --force-settings --force-files   # 覆盖前自�
 | :--- | :--- | :--- |
 | `npm:pi-deepseek-search` | DeepSeek 凭据 | 仅联网搜索工具不可用，不影响启动 |
 | `extensions/ds-balance.ts` | DeepSeek 凭据 | 扩展自守卫：非 DeepSeek provider 时不请求、不渲染该段 |
+| `npm:@tian.zuo/pi-antigravity` | 本机安装 Google Antigravity CLI（`agy`）并已登录 | 该插件的 agy 模型线路与 `/agy-*` 命令不可用；pi 与其它扩展正常启动（agy 进程按需拉起） |
 
 非 DeepSeek 用户可放心安装，或先跳过这两个包（`--skip-packages` 后自行挑选）。
 
