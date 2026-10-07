@@ -41,7 +41,7 @@
   },
   "quiet-startup": {
     "label": "静默启动",
-    "description": "禁用启动时的冗长信息打印"
+    "description": "禁用启动时的冗长信息打印（header：仅保留启动头部）"
   },
   "install-telemetry": {
     "label": "安装与更新遥测",
@@ -69,7 +69,7 @@
   },
   "tui-mode": {
     "label": "TUI 布局模式",
-    "description": "界面布局；全屏模式（fullscreen）处于实验阶段"
+    "description": "界面布局；常规模式（regular）使用终端原生的常规滚动回滚"
   },
   "fullscreen-exit-output": {
     "label": "全屏退出输出",

@@ -126,39 +126,46 @@ def main():
 
     gray = len(GRAY_LINE.findall(raw))
     gray_editor = editor_width_runs(b"\x1b[38;5;244m", raw)
-    # 调色板无关：统计每一种 Truecolor 下的 editor 宽度边框线
+    # 调色板无关：统计每一种前景色（Truecolor 或 256color 非中性灰）下的 editor 宽度边框线
     colored = {}
     for m in RGB_LINE.finditer(raw):
         rgb = tuple(int(x) for x in m.groups())
-        colored[rgb] = colored.get(rgb, 0) + 1
+        colored[f"rgb{list(rgb)}"] = (b"\x1b[38;2;" + f"{rgb[0]};{rgb[1]};{rgb[2]}".encode() + b"m", colored.get(f"rgb{list(rgb)}", (None, 0))[1] + 1)
+    # 256 色模式下的非中性灰横线（如 ANSI 5 品红思考色）
+    for m in re.finditer(rb"\x1b\[38;5;(\d+)m(?:" + re.escape(BAR) + rb"){20,}", raw):
+        idx = int(m.group(1))
+        if idx != 244:
+            k = f"ansi256({idx})"
+            colored[k] = (b"\x1b[38;5;" + str(idx).encode() + b"m", colored.get(k, (None, 0))[1] + 1)
+
     colored_editor = {}
-    for rgb in colored:
-        runs = editor_width_runs(b"\x1b[38;2;" + f"{rgb[0]};{rgb[1]};{rgb[2]}".encode() + b"m", raw)
+    for label, (seq, _) in colored.items():
+        runs = editor_width_runs(seq, raw)
         if runs:
-            colored_editor[rgb] = len(runs)
+            colored_editor[label] = len(runs)
 
     log(f"捕获 {len(raw)} 字节 / {len(chunks)} 个输出块（{args.seconds:g}s，{args.cols}×{args.rows}）")
     log(f"中性 244 灰长横线 : {gray} 处，其中 editor 宽度 {len(gray_editor)} 处")
     if colored_editor:
-        main_rgb, main_n = max(colored_editor.items(), key=lambda kv: kv[1])
+        main_color, main_n = max(colored_editor.items(), key=lambda kv: kv[1])
         log(f"editor 宽度着色边框线（调色板无关统计）：")
-        for rgb, n in sorted(colored_editor.items(), key=lambda kv: -kv[1]):
-            log(f"    rgb{list(rgb)} × {n} 条")
+        for color_lbl, n in sorted(colored_editor.items(), key=lambda kv: -kv[1]):
+            log(f"    {color_lbl} × {n} 条")
     else:
-        main_rgb, main_n = None, 0
+        main_color, main_n = None, 0
         log("未找到任何 editor 宽度的着色边框线（只要 editor chrome 在画，这里不应该为空）", "WARN")
 
     # 可选：锁定具体颜色
     if args.expect_rgb:
-        want = tuple(int(x) for x in args.expect_rgb.split(","))
+        want = f"rgb{[int(x) for x in args.expect_rgb.split(',')]}"
         ok_rgb = colored_editor.get(want, 0) >= args.min_colored
-        log(f"锁定颜色 rgb{list(want)}：{'命中' if ok_rgb else '未命中'}（{colored_editor.get(want, 0)} 条）",
+        log(f"锁定颜色 {want}：{'命中' if ok_rgb else '未命中'}（{colored_editor.get(want, 0)} 条）",
             "SUCCESS" if ok_rgb else "ERROR")
         sys.exit(0 if ok_rgb else 1)
 
-    if main_rgb is not None and main_n >= args.min_colored and len(gray_editor) < main_n:
+    if main_color is not None and main_n >= args.min_colored and len(gray_editor) < main_n:
         log(
-            f"哨兵通过：editor 上下边框已跟随 pi 的思考层级色（主色 rgb{list(main_rgb)} 共 {main_n} 条，"
+            f"哨兵通过：editor 上下边框已跟随 pi 的思考层级色（主色 {main_color} 共 {main_n} 条，"
             f"≥ 阈值 {args.min_colored}，且多于中性灰的 {len(gray_editor)} 条）。",
             "SUCCESS",
         )

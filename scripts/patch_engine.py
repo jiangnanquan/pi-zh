@@ -16,7 +16,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-SUPPORTED_VERSIONS = ["0.85.1", "0.86.1", "0.87.0", "0.87.1", "0.99.0", "0.99.1", "0.99.2"]
+SUPPORTED_VERSIONS = ["0.85.1", "0.86.1", "0.87.0", "0.87.1", "0.99.0", "0.99.1", "0.99.2", "1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4"]
 
 # 次级 chunk 的选取规则：chunk 里至少命中 CHUNK_PHRASE_MIN_COUNT 条长度≥ CHUNK_PHRASE_MIN_LEN
 # 的字典键，才纳入目标清单（主 chunk 按内容标记选取，不受此限）。
@@ -298,6 +298,17 @@ def patch_startup_banner(content: str, ui_dict: dict) -> tuple[str, int]:
         content, n = pat.subn(f'addLoadedSection("{sec_zh}",', content)
         replaced_count += n
 
+    # 4. 紧凑模式引导提示 (compactOnboarding)
+    # 0.99.2 为固定字符串，1.0.0 为支持 quietStartup: "header" 增加了 ${showDetails ? ...} 分支
+    pat_onboarding = re.compile(
+        r'Press \$\{keyText\(["\']app\.tools\.expand["\']\)\} to show full startup help\$\{showDetails\s*\?\s*["\'] and loaded resources["\']\s*:\s*["\']["\']\}\.'
+    )
+    content, n = pat_onboarding.subn(
+        r'按 ${keyText("app.tools.expand")} 查看完整启动帮助${showDetails ? "与已加载资源" : ""}。',
+        content,
+    )
+    replaced_count += n
+
     return content, replaced_count
 
 
@@ -369,6 +380,10 @@ def collect_target_files(pkg_dir: Path, literal_keys_list=None) -> list:
         # 会话选择器（All / Current Folder 标签）与显示图片选择器
         pkg_dir / "dist" / "modes" / "interactive" / "components" / "session-selector.js",
         pkg_dir / "dist" / "modes" / "interactive" / "components" / "show-images-selector.js",
+        # 1.0.0 新增展示面：Radius 登录选项流光渲染组件、Anthropic 复制代码/无头模式登录、Radius 登录选项
+        pkg_dir / "dist" / "modes" / "interactive" / "components" / "radius-login-selector.js",
+        pkg_dir / "dist" / "bundle" / "chunks" / "anthropic.js",
+        pkg_dir / "dist" / "bundle" / "chunks" / "radius.js",
     ]
 
     # 3. 内置扩展：0.99.0 起 mcp / codemode / tool-search / llama 以扩展模块形态发布，
