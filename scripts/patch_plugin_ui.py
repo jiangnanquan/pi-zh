@@ -102,17 +102,23 @@ def build_patch_items(target: dict) -> list:
       kind=text — 汉化文案（replacements，literal / raw）
       kind=code — 经用户逐条授权的插件行为补丁（code_patches，固定 raw 精确片段）
     两类共用同一套干净基底、未命中拦截、写盘后体检与一键还原。
+
+    默认次序：文案 → 行为补丁（历史行为，既有 target 的命中结果因此保持不变）。
+    target 声明 "code_patches_first": true 时颠倒为：行为补丁 → 文案。
+    适用场景：该 target 的行为补丁会插入新的界面文案，那些插入文本本身也要被同一份
+    replacements 汉化（例如欢迎页的提示词分段区块）。未声明该键的 target 行为不变。
     """
-    items = []
+    text_items = []
     for item in target.get("replacements", []):
-        items.append({
+        text_items.append({
             "kind": "text",
             "mode": item.get("mode", "literal"),
             "en": item["en"],
             "zh": item["zh"],
         })
+    code_items = []
     for patch in target.get("code_patches", []):
-        items.append({
+        code_items.append({
             "kind": "code",
             "mode": "raw",
             "en": patch["from"],
@@ -120,7 +126,9 @@ def build_patch_items(target: dict) -> list:
             "id": patch.get("id", ""),
             "authorized_on": patch.get("authorized_on", ""),
         })
-    return items
+    if target.get("code_patches_first"):
+        return [*code_items, *text_items]
+    return [*text_items, *code_items]
 
 
 def patch_text(content: str, replacements: list) -> tuple:

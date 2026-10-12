@@ -78,6 +78,15 @@ if [ -d "$PLUGIN_DIR" ]; then
         tail -20 /tmp/pi-zh-plugin-ui-render.log
         exit 1
     fi
+
+    # 提示词分段统计：用真实会话数据校验估值口径，并覆盖 44~110 列渲染
+    if node "$(dirname "${BASH_SOURCE[0]}")/probe_welcome_breakdown.mjs" >/tmp/pi-zh-welcome-breakdown.log 2>&1; then
+        echo -e "${GREEN}[通过] 提示词分段统计口径与多宽度渲染符合预期。${NC}"
+    else
+        echo -e "${RED}[失败] 提示词分段探针未通过，日志：/tmp/pi-zh-welcome-breakdown.log${NC}"
+        tail -20 /tmp/pi-zh-welcome-breakdown.log
+        exit 1
+    fi
 else
     echo -e "${YELLOW}[跳过] 未安装 pi-powerline-footer，无需校验插件 UI 汉化。${NC}"
 fi

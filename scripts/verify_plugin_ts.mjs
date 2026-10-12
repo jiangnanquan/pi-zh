@@ -222,7 +222,24 @@ async function main() {
 						{ name: "jnq", timeAgo: "6h ago" },
 					],
 					{ contextFiles: 1, extensions: 15, skills: 0, promptTemplates: 3 },
-					3700,
+					7800,
+					// 第 6 参：提示词分段数据（pi-zh 的 welcome-prompt-breakdown 补丁新增，可选）。
+					// 未打该补丁的 target 会忽略多余参数，因此这里无条件传入，让两条渲染路径都被覆盖。
+					{
+						system: 4200,
+						tools: 3600,
+						toolCount: 10,
+						sections: [
+							{ name: "tools", tokens: 180 },
+							{ name: "rules", tokens: 981 },
+							{ name: "docs", tokens: 370 },
+							{ name: "addendum", tokens: 154 },
+							{ name: "project_context", tokens: 740 },
+							{ name: "skills", tokens: 1700 },
+							{ name: "cwd", tokens: 7 },
+						],
+						total: 7800,
+					},
 				);
 			} catch (error) {
 				fail(`组件实例化失败：${error?.message ?? error}`);

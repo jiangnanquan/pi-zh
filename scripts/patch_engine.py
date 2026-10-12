@@ -16,7 +16,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-SUPPORTED_VERSIONS = ["0.85.1", "0.86.1", "0.87.0", "0.87.1", "0.99.0", "0.99.1", "0.99.2", "1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4"]
+SUPPORTED_VERSIONS = ["0.85.1", "0.86.1", "0.87.0", "0.87.1", "0.99.0", "0.99.1", "0.99.2", "1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4", "1.1.0"]
 
 # 次级 chunk 的选取规则：chunk 里至少命中 CHUNK_PHRASE_MIN_COUNT 条长度≥ CHUNK_PHRASE_MIN_LEN
 # 的字典键，才纳入目标清单（主 chunk 按内容标记选取，不受此限）。
@@ -129,20 +129,20 @@ def patch_slash_commands(content: str, commands_dict: dict) -> tuple[str, int]:
         # 匹配模式形如：{name:"compact",description:"..."} 或 { name: "compact", description: "..." }
         # 1. 替换 description
         if zh_desc:
-            # 模式 A: name:"xxx",description:"yyy"
+            # 模式 A: name:"xxx",description:"yyy" (支持单引号、双引号与模板反引号)
             pattern_a = re.compile(
-                r'(\bname\s*:\s*["\']' + re.escape(cmd_name) + r'["\']\s*,\s*description\s*:\s*["\'])([^"\']+)(["\'])'
+                r'(\bname\s*:\s*["\']' + re.escape(cmd_name) + r'["\']\s*,\s*description\s*:\s*)(["\'`])([^"\'`]+)\2'
             )
-            new_content, n = pattern_a.subn(r'\g<1>' + zh_desc + r'\g<3>', content)
+            new_content, n = pattern_a.subn(r'\g<1>\g<2>' + zh_desc + r'\g<2>', content)
             if n > 0:
                 content = new_content
                 replaced_count += n
             else:
                 # 模式 B: description 在 name 前面的情况（防御性）
                 pattern_b = re.compile(
-                    r'(\bdescription\s*:\s*["\'])([^"\']+)(["\']\s*,\s*name\s*:\s*["\']' + re.escape(cmd_name) + r'["\'])'
+                    r'(\bdescription\s*:\s*)(["\'`])([^"\'`]+)\2(\s*,\s*name\s*:\s*["\']' + re.escape(cmd_name) + r'["\'])'
                 )
-                new_content, n = pattern_b.subn(r'\g<1>' + zh_desc + r'\g<3>', content)
+                new_content, n = pattern_b.subn(r'\g<1>\g<2>' + zh_desc + r'\g<2>\g<4>', content)
                 if n > 0:
                     content = new_content
                     replaced_count += n
@@ -153,9 +153,9 @@ def patch_slash_commands(content: str, commands_dict: dict) -> tuple[str, int]:
         # 只替换 description，命令名与参数保持英文原文。
         if zh_desc:
             pattern_c = re.compile(
-                r'(registerCommand\(\s*["\']' + re.escape(cmd_name) + r'["\']\s*,\s*\{\s*description\s*:\s*["\'])([^"\']+)(["\'])'
+                r'(registerCommand\(\s*["\']' + re.escape(cmd_name) + r'["\']\s*,\s*\{\s*description\s*:\s*)(["\'`])([^"\'`]+)\2'
             )
-            new_content, n = pattern_c.subn(r'\g<1>' + zh_desc + r'\g<3>', content)
+            new_content, n = pattern_c.subn(r'\g<1>\g<2>' + zh_desc + r'\g<2>', content)
             if n > 0:
                 content = new_content
                 replaced_count += n
@@ -163,9 +163,9 @@ def patch_slash_commands(content: str, commands_dict: dict) -> tuple[str, int]:
         # 2. 替换 argumentHint
         if zh_hint:
             pattern_hint = re.compile(
-                r'(\bname\s*:\s*["\']' + re.escape(cmd_name) + r'["\'][^}]*\bargumentHint\s*:\s*["\'])([^"\']+)(["\'])'
+                r'(\bname\s*:\s*["\']' + re.escape(cmd_name) + r'["\'][^}]*\bargumentHint\s*:\s*)(["\'`])([^"\'`]+)\2'
             )
-            new_content, n = pattern_hint.subn(r'\g<1>' + zh_hint + r'\g<3>', content)
+            new_content, n = pattern_hint.subn(r'\g<1>\g<2>' + zh_hint + r'\g<2>', content)
             if n > 0:
                 content = new_content
                 replaced_count += n
@@ -181,9 +181,9 @@ def patch_keybindings(content: str, kb_dict: dict) -> tuple[str, int]:
     for kb_id, zh_desc in kb_dict.items():
         # 匹配 "app.interrupt": { ..., description: "..." }
         pattern = re.compile(
-            r'(' + re.escape(json.dumps(kb_id)) + r'\s*:\s*\{[^}]*\bdescription\s*:\s*["\'])([^"\']+)(["\'])'
+            r'(' + re.escape(json.dumps(kb_id)) + r'\s*:\s*\{[^}]*\bdescription\s*:\s*)(["\'`])([^"\'`]+)\2'
         )
-        new_content, n = pattern.subn(r'\g<1>' + zh_desc + r'\g<3>', content)
+        new_content, n = pattern.subn(r'\g<1>\g<2>' + zh_desc + r'\g<2>', content)
         if n > 0:
             content = new_content
             replaced_count += n

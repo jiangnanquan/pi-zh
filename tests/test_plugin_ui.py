@@ -28,6 +28,31 @@ PACKAGE = "pi-powerline-footer"
 # 真实 welcome.ts 的等价摘录：覆盖 i18n/plugin-ui.json 全部锚点
 SAMPLE_TS = """import { callout } from "./colors.ts";
 
+function fitToWidth(str: string, width: number): string {
+  const visLen = visibleWidth(str);
+  if (visLen > width) return tuiTruncateToWidth(str, width, "…");
+  return str + " ".repeat(width - visLen);
+}
+
+export interface LoadedCounts {
+  contextFiles: number;
+  skills: number;
+  promptTemplates: number;
+}
+
+interface RecentSession {
+  name: string;
+  timeAgo: string;
+}
+
+interface WelcomeData {
+  modelName: string;
+  providerName: string;
+  recentSessions: RecentSession[];
+  loadedCounts: LoadedCounts;
+  initialContextTokens: number | null;
+}
+
 function buildLeftColumn(data, colWidth) {
   return [
     "",
@@ -44,6 +69,15 @@ function buildRightColumn(data, colWidth) {
   } else {
     countLines.push(` ${dim("No context files, skills, or prompts loaded")}`);
   }
+
+  if (
+    data.initialContextTokens !== null
+    && Number.isFinite(data.initialContextTokens)
+    && data.initialContextTokens > 0
+  ) {
+    countLines.push(` ${itemPrefix}${fgOnly("gitClean", `≈ ${formatTokens(data.initialContextTokens)}`)} initial prompt tokens`);
+  }
+
   return [
     ` ${bold(fgOnly("accent", "Tips"))}`,
     ` ${dim("/")} for commands`,
@@ -51,10 +85,51 @@ function buildRightColumn(data, colWidth) {
     ` ${dim("Shift+Tab")} cycle thinking`,
     ` ${bold(fgOnly("accent", "Loaded"))}`,
     ...countLines,
-    ` ${itemPrefix}${fgOnly("gitClean", `= ${formatTokens(0)}`)} initial prompt tokens`,
     ` ${bold(fgOnly("accent", "Recent sessions"))}`,
     ` ${dim("No recent sessions")}`,
   ];
+}
+
+function renderWelcomeBox(
+  data: WelcomeData,
+  termWidth: number,
+  bottomLine: string,
+): string[] {
+  return [];
+}
+
+export class WelcomeComponent {
+  private data: WelcomeData;
+
+  constructor(
+    modelName: string,
+    providerName: string,
+    recentSessions: RecentSession[] = [],
+    loadedCounts: LoadedCounts = { contextFiles: 0, skills: 0, promptTemplates: 0 },
+    initialContextTokens: number | null = null,
+  ) {
+    this.data = { modelName, providerName, recentSessions, loadedCounts, initialContextTokens };
+  }
+
+  setCountdown(seconds: number): void {
+    this.countdown = seconds;
+  }
+}
+
+export class WelcomeHeader {
+  private data: WelcomeData;
+
+  constructor(
+    modelName: string,
+    providerName: string,
+    recentSessions: RecentSession[] = [],
+    loadedCounts: LoadedCounts = { contextFiles: 0, skills: 0, promptTemplates: 0 },
+    initialContextTokens: number | null = null,
+  ) {
+    this.data = { modelName, providerName, recentSessions, loadedCounts, initialContextTokens };
+  }
+
+  invalidate(): void {}
 }
 
 function formatTimeAgo(ms) {
@@ -73,6 +148,7 @@ function renderWidth() {
 # index.ts 的等价摘录：0.17.2 起上游已原生实现 editor 边框继承思考层级色（#221）
 # 与 footer 预留行（#217），本摘录只承载仍在字典中的 welcome-header-eager-shell 锚点。
 SAMPLE_INDEX_TS = """import { getFgAnsiCode, ansi } from "./colors.ts";
+import { CoreContextUsageCache, estimateInitialContextTokens, estimateUnknownContextUsage, resolveDisplayContextUsage, type CoreContextUsage } from "./context-usage.ts";
 
 export function colorEditorBorder(editor: unknown, text: string): string {
   const borderColor = editor && typeof editor === "object"
@@ -104,6 +180,32 @@ export function setupWelcomeHeader(ctx: any) {
   }, 0);
 }
 
+export function setupWelcomeOverlay(ctx: any) {
+  welcomeTimer = setTimeout(async () => {
+    welcomeTimer = null;
+    try {
+        if (!canShowWelcome(ctx, request, overlaySessionGeneration)) return;
+        const recentSessions = await getRecentSessions(3, request.signal);
+        if (!canShowWelcome(ctx, request, overlaySessionGeneration)) return;
+        const loadedCounts = discoverLoadedCounts(pi.getCommands());
+        const initialContextTokens = estimateInitialContextTokens(ctx);
+
+        void ctx.ui.custom(
+          (tui: any, _theme: any, _keybindings: any, done: (result: void) => void) => {
+            const welcome = new WelcomeComponent(
+              modelName,
+              providerName,
+              recentSessions,
+              loadedCounts,
+              initialContextTokens,
+            );
+            return { render: () => [], invalidate() {} };
+          },
+        );
+    } catch (error) {}
+  }, 0);
+}
+
 export function registerExtension(ctx: any) {
   function setupCustomEditor(ctx: any) {
     ctx.ui.setFooter((tui: any, theme: Theme, footerData: ReadonlyFooterDataProvider) => {
@@ -119,6 +221,24 @@ export function registerExtension(ctx: any) {
       };
     });
   }
+}
+"""
+
+
+# context-usage.ts 的等价摘录：只承载提示词分段估值的行为补丁锚点
+SAMPLE_CONTEXT_USAGE_TS = """import { estimateTokens } from "@earendil-works/pi-coding-agent";
+
+export function estimateInitialContextTokens(ctx: unknown): number | null {
+  return null;
+}
+
+export function resolveDisplayContextUsage({
+  coreContextUsage,
+  unknownCoreFallback,
+  fallbackContextTokens,
+  fallbackContextWindow,
+}: DisplayContextUsageInput): CoreContextUsage {
+  return coreContextUsage ?? unknownCoreFallback;
 }
 """
 
@@ -147,6 +267,7 @@ class TempPluginCase(unittest.TestCase):
 
     source = SAMPLE_TS
     index_source = SAMPLE_INDEX_TS
+    context_source = SAMPLE_CONTEXT_USAGE_TS
 
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -166,6 +287,11 @@ class TempPluginCase(unittest.TestCase):
         self.index_file.write_text(self.index_source, encoding="utf-8")
         self.index_original = self.index_file.read_text(encoding="utf-8")
         self.index_backup = ppu.backup_path_for(self.index_file)
+
+        self.context_file = self.pkg_dir / "context-usage.ts"
+        self.context_file.write_text(self.context_source, encoding="utf-8")
+        self.context_original = self.context_file.read_text(encoding="utf-8")
+        self.context_backup = ppu.backup_path_for(self.context_file)
 
         _data, self.targets = ppu.load_dict(ppu.DICT_PATH)
         self.target = next(t for t in self.targets if t["file"] == "welcome.ts")
@@ -203,8 +329,12 @@ class TestDictContract(unittest.TestCase):
         """条目规模是维护基线：变更必须同步 00_状态.md 与本节数字"""
         text = sum(len(t["replacements"]) for t in self.targets)
         code = sum(len(t.get("code_patches", [])) for t in self.targets)
-        self.assertEqual(18, text, "文案条目数变化需同步 00_状态.md")
-        self.assertEqual(1, code, "行为补丁锚点数变化需同步 00_状态.md")
+        self.assertEqual(21, text, "文案条目数变化需同步 00_状态.md")
+        self.assertEqual(
+            13,
+            code,
+            "行为补丁锚点数变化需同步 00_状态.md（eager-shell 1 + 提示词分段 11 + 渲染修复 1）",
+        )
 
     def test_modes_are_known(self):
         for target in self.targets:
@@ -283,14 +413,17 @@ class TestCodePatchContract(unittest.TestCase):
         self.assertTrue(any("过短" in p for p in ppu.validate_code_patches(bad)))
 
     def test_code_patch_is_applied_as_raw_and_tagged(self):
-        items = ppu.build_patch_items(self.code_targets[0])
+        items = ppu.build_patch_items(next(t for t in self.code_targets if t["file"] == "index.ts"))
         self.assertTrue(all(item["kind"] == "code" for item in items))
         content, results = ppu.patch_text(SAMPLE_INDEX_TS, items)
         self.assertEqual([], [r["en"] for r in results if r["hits"] == 0])
         self.assertIn("const shellHeader = new WelcomeHeader(modelName, providerName);", content)
         self.assertIn("dismissWelcome(ctx);", content)
         # editor 边框与 dock 行为补丁已于 0.17.2 退役（上游 #221 / #217 已原生实现）
-        self.assertEqual(1, len(self.patches), "0.17.2 起仅保留 welcome-header-eager-shell")
+        ids = [p["id"] for p in self.patches]
+        self.assertIn("welcome-header-eager-shell", ids)
+        self.assertEqual(len(ids), len(set(ids)), "行为补丁 id 必须唯一")
+        self.assertEqual(13, len(self.patches), "0.20.x：eager-shell 1 + 提示词分段 11 + 渲染修复 1")
 
 
 class TestRawTemplateRewrites(unittest.TestCase):
@@ -321,7 +454,13 @@ class TestRawTemplateRewrites(unittest.TestCase):
         self.assertIn("查看命令列表", patched)
 
     def test_full_sample_hits_every_entry(self):
-        _patched, results = ppu.patch_text(SAMPLE_TS, self.items)
+        """样例摘录必须覆盖该 target 的全部条目。
+
+        welcome.ts 声明了 code_patches_first（行为补丁插入新文案，需被同一份 replacements
+        覆盖），因此这里走 build_patch_items 而不是直接用 replacements 列表。
+        """
+        target = next(t for t in self.targets if t["file"] == "welcome.ts")
+        _patched, results = ppu.patch_text(SAMPLE_TS, ppu.build_patch_items(target))
         missing = [r["en"] for r in results if r["hits"] == 0]
         self.assertEqual([], missing, f"样例摘录未覆盖条目：{missing}")
 
@@ -339,9 +478,11 @@ class TestApplyIdempotentAndRestore(TempPluginCase):
     def test_apply_then_reapply_is_idempotent(self):
         processed, changes, failures = self.apply_once()
         self.assertEqual([], failures)
-        self.assertEqual(2, processed, "welcome.ts 与 index.ts 两个 target 都应处理")
+        self.assertEqual(3, processed, "welcome.ts / index.ts / context-usage.ts 三个 target 都应处理")
         expected_total = self._dict_entry_total()
-        self.assertEqual(expected_total, changes, f"应命中字典全量 {expected_total} 处（文案 + 行为补丁）")
+        self.assertGreaterEqual(
+            changes, expected_total, f"应覆盖字典全部 {expected_total} 个条目（多命中条目使总处数更大）"
+        )
         self.assertTrue(self.backup.exists(), "首次 apply 必须留下干净基底备份")
         self.assertTrue(self.index_backup.exists(), "行为补丁 target 同样必须留备份")
 
@@ -361,7 +502,7 @@ class TestApplyIdempotentAndRestore(TempPluginCase):
         # 二次 apply：以备份为源，结果必须完全一致，备份不得被覆盖
         _processed, changes2, failures2 = self.apply_once()
         self.assertEqual([], failures2)
-        self.assertEqual(expected_total, changes2, f"二次 apply 仍应命中 {expected_total} 处（从备份重算），而非叠加")
+        self.assertEqual(changes, changes2, "二次 apply 命中处数必须与首次一致（从备份重算），而非叠加")
         self.assertEqual(first_pass, self.target_file.read_text(encoding="utf-8"))
         self.assertEqual(index_pass, self.index_file.read_text(encoding="utf-8"))
         self.assertEqual(backup_hash, sha256(self.backup), "备份被覆盖，违反干净基底红线")
@@ -373,11 +514,37 @@ class TestApplyIdempotentAndRestore(TempPluginCase):
         self.assertNotEqual(self.index_original, self.index_file.read_text(encoding="utf-8"))
 
         restored = ppu.restore_targets(self.targets, fake_args(self.nm_dir))
-        self.assertEqual(2, restored)
+        self.assertEqual(3, restored)
         self.assertEqual(self.original, self.target_file.read_text(encoding="utf-8"))
         self.assertEqual(self.index_original, self.index_file.read_text(encoding="utf-8"))
+        self.assertEqual(self.context_original, self.context_file.read_text(encoding="utf-8"))
         self.assertFalse(self.backup.exists(), "还原后备份应被移除")
         self.assertFalse(self.index_backup.exists())
+        self.assertFalse(self.context_backup.exists())
+
+    def test_prompt_breakdown_patch_lands_and_is_translated(self):
+        """提示词分段补丁：代码落地 + 插入的文案被同一次 apply 汉化"""
+        processed, _changes, failures = self.apply_once()
+        self.assertEqual([], failures)
+        self.assertEqual(3, processed)
+
+        patched = self.target_file.read_text(encoding="utf-8")
+        self.assertIn("promptBreakdown: PromptBreakdown | null = null,", patched)
+        self.assertIn("buildPromptBreakdownLines(data, colWidth)", patched)
+        self.assertIn("系统提示词 ${formatTokens(breakdown.system)}", patched)
+        self.assertIn("工具 schema ${formatTokens(breakdown.tools)}（${breakdown.toolCount} 个）", patched)
+        self.assertNotIn("system prompt ${formatTokens(breakdown.system)}", patched, "插入文案未被汉化")
+
+        context_patched = self.context_file.read_text(encoding="utf-8")
+        self.assertIn("export function estimatePromptBreakdown(", context_patched)
+        self.assertIn("export function splitSystemPromptSections(", context_patched)
+
+        index_patched = self.index_file.read_text(encoding="utf-8")
+        self.assertIn(
+            "const initialContextTokens = promptBreakdown?.total ?? estimateInitialContextTokens(ctx);",
+            index_patched,
+        )
+
 
     def test_status_reflects_state(self):
         plan = ppu.plan_target(self.target, self.pkg_dir)
@@ -391,6 +558,43 @@ class TestApplyIdempotentAndRestore(TempPluginCase):
             plan_after["patched_content"], plan_after["file_path"].read_text(encoding="utf-8")
         )
 
+
+class TestCodePatchOrdering(unittest.TestCase):
+    """code_patches_first：仅有声明该键的 target 颠倒次序，其余 target 行为不变"""
+
+    @staticmethod
+    def target(code_first):
+        target = {
+            "replacements": [{"mode": "raw", "en": "LABEL_TOKEN", "zh": "标签"}],
+            "code_patches": [{
+                "id": "insert", "reason": "y", "authorized_on": "2026-10-11",
+                "from": "// anchor line with enough context\n",
+                "to": "// anchor line with enough context\nconst label = `LABEL_TOKEN`;\n",
+            }],
+        }
+        if code_first:
+            target["code_patches_first"] = True
+        return target
+
+    def test_default_order_is_text_then_code(self):
+        items = ppu.build_patch_items(self.target(False))
+        self.assertEqual(["text", "code"], [item["kind"] for item in items])
+        # 默认次序下，文案先跑，插入代码里的 LABEL_TOKEN 不会被汉化（历史行为，保持兼容）
+        _patched, _results = ppu.patch_text("", items)
+        self.assertEqual([], [r for r in _results if r["hits"]])
+
+    def test_code_patches_first_flips_order_and_translates_inserted_text(self):
+        items = ppu.build_patch_items(self.target(True))
+        self.assertEqual(["code", "text"], [item["kind"] for item in items])
+        content = "// anchor line with enough context\n"
+        patched, results = ppu.patch_text(content, items)
+        self.assertEqual([], [r["en"] for r in results if r["hits"] == 0])
+        self.assertIn("const label = `标签`;", patched, "插入代码中的文案应被同一次 apply 覆盖")
+
+    def test_dict_declares_the_flag_for_welcome_target(self):
+        _data, targets = ppu.load_dict(ppu.DICT_PATH)
+        welcome = next(t for t in targets if t["file"] == "welcome.ts")
+        self.assertTrue(welcome.get("code_patches_first"), "welcome.ts 必须声明该键，否则插入文案留英文")
 
 class TestMissingDetection(TempPluginCase):
     # 模拟上游改了措辞：原文 "just now" 变成 "moments ago"，字典未同步

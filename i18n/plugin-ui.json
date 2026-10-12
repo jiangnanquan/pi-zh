@@ -1,16 +1,19 @@
 {
   "_readme": "pi-zh 插件 UI 汉化字典（维护线 C）。这里收录第三方插件中『无法用运行时覆盖实现』的界面渲染文案：插件用 hardcoded 字符串渲染 TUI 组件，无注册接口可拦截，只能对插件源文件打精确字面量补丁。汉化对象与原文一对一绑定，插件升级改写措辞时由 patch_plugin_ui.py 的未命中检测报出漂移。命令名、变量名、品牌标题（如 pi agent、模型名）一律不收录在 replacements。",
-  "_update_policy": "补 replacements 条目时必须：① 用 grep 确认 en 原文在目标文件中唯一命中；② 带上下文的长串优先（literal 模式只匹配引号包裹的字面量，raw 模式必须自带足够上下文，禁止裸单词）。\n\ncode_patches 是另一类东西：它不是汉化，而是『经用户逐条授权的插件行为补丁』（如让 editor 边框继承 pi 思考层级色）。写入规则：① 必须有 id / reason / authorized_on（YYYY-MM-DD），缺一不可；② from 必须是自带上下文的多行或≥ 30 字符的精确片段；③ 必须保留原行为作为回退分支，不得删掉原有实现；④ 与汉化共用同一套干净基底、未命中拦截与 jiti 体检，--restore 一并回滚。",
+  "_update_policy": "补 replacements 条目时必须：① 用 grep 确认 en 原文在目标文件中唯一命中；② 带上下文的长串优先（literal 模式只匹配引号包裹的字面量，raw 模式必须自带足够上下文，禁止裸单词）。\n\ncode_patches 是另一类东西：它不是汉化，而是『经用户逐条授权的插件行为补丁』（如让 editor 边框继承 pi 思考层级色）。写入规则：① 必须有 id / reason / authorized_on（YYYY-MM-DD），缺一不可；② from 必须是自带上下文的多行或≥ 30 字符的精确片段；③ 必须保留原行为作为回退分支，不得删掉原有实现；④ 与汉化共用同一套干净基底、未命中拦截与 jiti 体检，--restore 一并回滚。\n\n次序：默认「文案 → 行为补丁」。若某 target 的行为补丁会插入新的界面文案、需要让同一份 replacements 覆盖这些插入文本，必须在该 target 上声明 \"code_patches_first\": true （引擎据此颠倒次序；未声明的 target 行为不变）。",
   "targets": [
     {
       "package": "pi-powerline-footer",
       "file": "welcome.ts",
-      "source_version": "0.19.1",
+      "source_version": "0.20.0",
       "verify_expect": [
         "欢迎回来",
         "已加载",
         "最近会话",
-        "个上下文文件"
+        "个上下文文件",
+        "rules",
+        "schema",
+        "1.7k"
       ],
       "replacements_note": "以下条目全部为渲染期硬编码文案（literal 只命中引号内字面量，raw 自带上下文），不含任何逻辑改动。",
       "note": "启动欢迎页（welcome header / overlay）渲染文案。布局宽度由 pi-tui 的 visibleWidth 动态计算，中文全角宽度自动适配，无需改动布局参数。0.17.2 起上游移除扩展计数（#218），已同步删除『扩展』条目并补译新的空态文案。",
@@ -111,18 +114,89 @@
           "mode": "literal",
           "en": "just now",
           "zh": "刚刚"
+        },
+        {
+          "mode": "raw",
+          "en": "system prompt ${formatTokens(breakdown.system)}",
+          "zh": "系统提示词 ${formatTokens(breakdown.system)}",
+          "note": "分段区块的 system prompt 标签（模板串正文，不含反引号以免触发安全校验）"
+        },
+        {
+          "mode": "raw",
+          "en": "tool schema ${formatTokens(breakdown.tools)} (${breakdown.toolCount})",
+          "zh": "工具 schema ${formatTokens(breakdown.tools)}（${breakdown.toolCount} 个）",
+          "note": "工具声明分桶标签；schema 为技术名词保留英文，与 tokens 同例"
+        },
+        {
+          "mode": "raw",
+          "en": "other ${formatTokens(rest)}",
+          "zh": "其他 ${formatTokens(rest)}",
+          "note": "分段超过 7 条时的折叠标签"
         }
       ],
       "preserved": [
         " pi agent （品牌标题）",
         "模型名与 provider 名（运行时数据）",
         "• / Shift+Tab / 按键提示符（快捷键与符号原文）"
+      ],
+      "code_patches_first": true,
+      "code_patches_first_note": "本 target 的行为补丁会插入新的欢迎页文案（分段区块标签），因此先插代码、再用同一份 replacements 汉化插入文本；未声明该键的 target 次序不变。",
+      "code_patches": [
+        {
+          "id": "welcome-prompt-breakdown-types",
+          "authorized_on": "2026-10-11",
+          "reason": "欢迎页「初始提示词 tokens」原本只统计 system prompt 文本（≈4.2k），把工具 JSON schema 完全漏掉；用户 2026-10-11 观察到该数字与实际首请求（provider usage ≈7.07k）差一个量级，拍板要求分段明细。本补丁解析 Pi 渲染 system prompt 时包裹的分段标签（见 pi-ai/utils/text.js 的 getSystemMessageText：非 preamble 段落均为 <name>\\n…\\n</name>，用 \\n\\n 拼接），并用 pi.getAllTools()/getActiveTools() 计入工具声明，二者除以 4 得到与 Pi estimateTokens 同口径的估算值。回退分支：解析不到分段或拿不到工具列表时 estimatePromptBreakdown() 返回 null，欢迎页退回原来的单行总量显示，行为与上游一致；整体还原走 .zh-backup（--restore）。 位置①：在 LoadedCounts 之后新增两个纯类型导出。",
+          "from": "export interface LoadedCounts {\n  contextFiles: number;\n  skills: number;\n  promptTemplates: number;\n}\n",
+          "to": "export interface LoadedCounts {\n  contextFiles: number;\n  skills: number;\n  promptTemplates: number;\n}\n\nexport interface PromptBreakdownSection {\n  name: string;\n  tokens: number;\n}\n\nexport interface PromptBreakdown {\n  system: number;\n  tools: number;\n  toolCount: number;\n  sections: PromptBreakdownSection[];\n  total: number;\n}\n"
+        },
+        {
+          "id": "welcome-prompt-breakdown-data",
+          "authorized_on": "2026-10-11",
+          "reason": "欢迎页「初始提示词 tokens」原本只统计 system prompt 文本（≈4.2k），把工具 JSON schema 完全漏掉；用户 2026-10-11 观察到该数字与实际首请求（provider usage ≈7.07k）差一个量级，拍板要求分段明细。本补丁解析 Pi 渲染 system prompt 时包裹的分段标签（见 pi-ai/utils/text.js 的 getSystemMessageText：非 preamble 段落均为 <name>\\n…\\n</name>，用 \\n\\n 拼接），并用 pi.getAllTools()/getActiveTools() 计入工具声明，二者除以 4 得到与 Pi estimateTokens 同口径的估算值。回退分支：解析不到分段或拿不到工具列表时 estimatePromptBreakdown() 返回 null，欢迎页退回原来的单行总量显示，行为与上游一致；整体还原走 .zh-backup（--restore）。 位置②：WelcomeData 增加可选的分段数据字段。",
+          "from": "interface WelcomeData {\n  modelName: string;\n  providerName: string;\n  recentSessions: RecentSession[];\n  loadedCounts: LoadedCounts;\n  initialContextTokens: number | null;\n}\n",
+          "to": "interface WelcomeData {\n  modelName: string;\n  providerName: string;\n  recentSessions: RecentSession[];\n  loadedCounts: LoadedCounts;\n  initialContextTokens: number | null;\n  promptBreakdown: PromptBreakdown | null;\n}\n"
+        },
+        {
+          "id": "welcome-prompt-breakdown-ctor-param",
+          "authorized_on": "2026-10-11",
+          "reason": "欢迎页「初始提示词 tokens」原本只统计 system prompt 文本（≈4.2k），把工具 JSON schema 完全漏掉；用户 2026-10-11 观察到该数字与实际首请求（provider usage ≈7.07k）差一个量级，拍板要求分段明细。本补丁解析 Pi 渲染 system prompt 时包裹的分段标签（见 pi-ai/utils/text.js 的 getSystemMessageText：非 preamble 段落均为 <name>\\n…\\n</name>，用 \\n\\n 拼接），并用 pi.getAllTools()/getActiveTools() 计入工具声明，二者除以 4 得到与 Pi estimateTokens 同口径的估算值。回退分支：解析不到分段或拿不到工具列表时 estimatePromptBreakdown() 返回 null，欢迎页退回原来的单行总量显示，行为与上游一致；整体还原走 .zh-backup（--restore）。 位置③：两个欢迎组件（WelcomeComponent / WelcomeHeader）的构造函数各追加一个带默认值的可选参数，默认 null ⇒ 旧调用方（含 pi 上游与校验器只传 5 参的用法）行为不变。此条目命中 2 处。",
+          "from": "    initialContextTokens: number | null = null,\n",
+          "to": "    initialContextTokens: number | null = null,\n    promptBreakdown: PromptBreakdown | null = null,\n"
+        },
+        {
+          "id": "welcome-prompt-breakdown-ctor-assign",
+          "authorized_on": "2026-10-11",
+          "reason": "欢迎页「初始提示词 tokens」原本只统计 system prompt 文本（≈4.2k），把工具 JSON schema 完全漏掉；用户 2026-10-11 观察到该数字与实际首请求（provider usage ≈7.07k）差一个量级，拍板要求分段明细。本补丁解析 Pi 渲染 system prompt 时包裹的分段标签（见 pi-ai/utils/text.js 的 getSystemMessageText：非 preamble 段落均为 <name>\\n…\\n</name>，用 \\n\\n 拼接），并用 pi.getAllTools()/getActiveTools() 计入工具声明，二者除以 4 得到与 Pi estimateTokens 同口径的估算值。回退分支：解析不到分段或拿不到工具列表时 estimatePromptBreakdown() 返回 null，欢迎页退回原来的单行总量显示，行为与上游一致；整体还原走 .zh-backup（--restore）。 位置④：两个组件构造函数体内同步赋值，命中 2 处。",
+          "from": "    this.data = { modelName, providerName, recentSessions, loadedCounts, initialContextTokens };\n",
+          "to": "    this.data = { modelName, providerName, recentSessions, loadedCounts, initialContextTokens, promptBreakdown };\n"
+        },
+        {
+          "id": "welcome-prompt-breakdown-block",
+          "authorized_on": "2026-10-11",
+          "reason": "欢迎页「初始提示词 tokens」原本只统计 system prompt 文本（≈4.2k），把工具 JSON schema 完全漏掉；用户 2026-10-11 观察到该数字与实际首请求（provider usage ≈7.07k）差一个量级，拍板要求分段明细。本补丁解析 Pi 渲染 system prompt 时包裹的分段标签（见 pi-ai/utils/text.js 的 getSystemMessageText：非 preamble 段落均为 <name>\\n…\\n</name>，用 \\n\\n 拼接），并用 pi.getAllTools()/getActiveTools() 计入工具声明，二者除以 4 得到与 Pi estimateTokens 同口径的估算值。回退分支：解析不到分段或拿不到工具列表时 estimatePromptBreakdown() 返回 null，欢迎页退回原来的单行总量显示，行为与上游一致；整体还原走 .zh-backup（--restore）。 位置⑤：右栏渲染改为优先输出分段区块，拿不到分段数据时回退原单行实现（保留原判断与文案）。",
+          "from": "  if (\n    data.initialContextTokens !== null\n    && Number.isFinite(data.initialContextTokens)\n    && data.initialContextTokens > 0\n  ) {\n    countLines.push(` ${itemPrefix}${fgOnly(\"gitClean\", `≈ ${formatTokens(data.initialContextTokens)}`)} initial prompt tokens`);\n  }\n",
+          "to": "  const promptLines = buildPromptBreakdownLines(data, colWidth);\n  if (promptLines.length > 0) {\n    countLines.push(...promptLines);\n  } else if (\n    data.initialContextTokens !== null\n    && Number.isFinite(data.initialContextTokens)\n    && data.initialContextTokens > 0\n  ) {\n    countLines.push(` ${itemPrefix}${fgOnly(\"gitClean\", `≈ ${formatTokens(data.initialContextTokens)}`)} initial prompt tokens`);\n  }\n"
+        },
+        {
+          "id": "welcome-prompt-breakdown-helpers",
+          "authorized_on": "2026-10-11",
+          "reason": "欢迎页「初始提示词 tokens」原本只统计 system prompt 文本（≈4.2k），把工具 JSON schema 完全漏掉；用户 2026-10-11 观察到该数字与实际首请求（provider usage ≈7.07k）差一个量级，拍板要求分段明细。本补丁解析 Pi 渲染 system prompt 时包裹的分段标签（见 pi-ai/utils/text.js 的 getSystemMessageText：非 preamble 段落均为 <name>\\n…\\n</name>，用 \\n\\n 拼接），并用 pi.getAllTools()/getActiveTools() 计入工具声明，二者除以 4 得到与 Pi estimateTokens 同口径的估算值。回退分支：解析不到分段或拿不到工具列表时 estimatePromptBreakdown() 返回 null，欢迎页退回原来的单行总量显示，行为与上游一致；整体还原走 .zh-backup（--restore）。 位置⑥：在 renderWelcomeBox 之前新增渲染辅助函数（宽度自适应的键值打包、7 条上限折叠、多行拼装）。",
+          "from": "  ];\n}\n\nfunction renderWelcomeBox(\n",
+          "to": "  ];\n}\n\nfunction promptSectionLabel(name: string): string {\n  return name === \"project_context\" ? \"project\" : name;\n}\n\nconst PROMPT_BREAKDOWN_MAX_SECTIONS = 7;\n\nfunction packPromptPairs(items: string[], maxWidth: number): string[] {\n  const lines: string[] = [];\n  let current = \"\";\n  for (const item of items) {\n    if (current.length === 0) {\n      current = item;\n    } else if (visibleWidth(current) + 3 + visibleWidth(item) <= maxWidth) {\n      current += ` · ${item}`;\n    } else {\n      lines.push(current);\n      current = item;\n    }\n  }\n  if (current.length > 0) lines.push(current);\n  return lines;\n}\n\nfunction promptSectionPairs(sections: PromptBreakdownSection[]): string[] {\n  const pairs = sections.map((section) => `${promptSectionLabel(section.name)} ${formatTokens(section.tokens)}`);\n  if (pairs.length <= PROMPT_BREAKDOWN_MAX_SECTIONS) return pairs;\n\n  const head = pairs.slice(0, PROMPT_BREAKDOWN_MAX_SECTIONS - 1);\n  const rest = sections\n    .slice(PROMPT_BREAKDOWN_MAX_SECTIONS - 1)\n    .reduce((sum, section) => sum + section.tokens, 0);\n  head.push(`other ${formatTokens(rest)}`);\n  return head;\n}\n\n/**\n * Initial-prompt breakdown: the system prompt split by section, then the tool declarations.\n * Falls back to the caller's single-line total when no breakdown data is available.\n */\nfunction buildPromptBreakdownLines(data: WelcomeData, colWidth: number): string[] {\n  const breakdown = data.promptBreakdown;\n  const total = data.initialContextTokens;\n  if (breakdown === null || total === null || !Number.isFinite(total) || total <= 0) {\n    return [];\n  }\n\n  const itemPrefix = dim(\"- \");\n  const lines = [\n    ` ${itemPrefix}${fgOnly(\"gitClean\", `≈ ${formatTokens(total)}`)} initial prompt tokens`,\n    `  ${dim(\"├\")} ${dim(`system prompt ${formatTokens(breakdown.system)}`)}`,\n  ];\n\n  const packed = packPromptPairs(promptSectionPairs(breakdown.sections), Math.max(12, colWidth - 7));\n  for (const line of packed) {\n    lines.push(`  ${dim(\"│\")}   ${dim(line)}`);\n  }\n\n  if (breakdown.tools > 0) {\n    lines.push(`  ${dim(\"└\")} ${dim(`tool schema ${formatTokens(breakdown.tools)} (${breakdown.toolCount})`)}`);\n  }\n  return lines;\n}\n\nfunction renderWelcomeBox(\n"
+        },
+        {
+          "id": "welcome-fit-to-width-pad",
+          "authorized_on": "2026-10-11",
+          "reason": "欢迎页提示词分段区块新增了较长的明细行，使「欢迎框 + 中文 + 窄终端」这条路径被更多触发。实测（scripts/probe_welcome_breakdown.mjs）在 44 列下 Shift+Tab / 上下文文件 / 提示词模板 三行渲染为 43 列，根因是上游 fitToWidth 直接返回 tuiTruncateToWidth 的结果，而后者为避免劈开全角字符会有意少一列，于是右边框错位。本补丁只在溢出分支补齐空格，不改截断策略本身；未溢出时行为与上游逐字一致。回退分支：truncatedLen >= width 时原样返回截断结果。整体还原走 .zh-backup（--restore）。",
+          "from": "function fitToWidth(str: string, width: number): string {\n  const visLen = visibleWidth(str);\n  if (visLen > width) return tuiTruncateToWidth(str, width, \"…\");\n  return str + \" \".repeat(width - visLen);\n}\n",
+          "to": "function fitToWidth(str: string, width: number): string {\n  const visLen = visibleWidth(str);\n  if (visLen > width) {\n    // [pi-zh fit-to-width] 窄终端 + 中文场景下，tuiTruncateToWidth 为避免劈开全角字符\n    // 可能返回 width-1 列，导致欢迎框右边框错位。此处补齐到 width。\n    // 回退分支：未触发达标长度时行为与上游完全一致（仍在超宽时截断并加省略号）。\n    const truncated = tuiTruncateToWidth(str, width, \"…\");\n    const truncatedLen = visibleWidth(truncated);\n    return truncatedLen < width ? truncated + \" \".repeat(width - truncatedLen) : truncated;\n  }\n  return str + \" \".repeat(width - visLen);\n}\n"
+        }
       ]
     },
     {
       "package": "pi-powerline-footer",
       "file": "index.ts",
-      "source_version": "0.19.1",
+      "source_version": "0.20.0",
       "note": "插件主入口，不承载汉化文案，只承载用户逐条授权且未被上游吸收的渲染行为补丁。0.17.2 起上游已原生实现两项：editor 边框跟随 pi 思考层级色（#221）、次级详情复用 footer 预留行而不挤占 editor（#217）—— 对应补丁 `editor-chrome-thinking-border` 与 `dock-trim-primary-into-footer` 已退役（退役依据：未打补丁的 0.17.2 上 probe_editor_border.py 紫 6/灰 0 通过、probe_dock_rows.py 末行即状态行通过）。当前仅保留 `welcome-header-eager-shell`：欢迎页先用空数据挂 header 立即上屏，取数完成后再换完整数据 header 重绘。",
       "replacements": [],
       "verify_expect": [],
@@ -133,6 +207,55 @@
           "reason": "启动欢迎页在 session_start 的宏任务里先 await 扫会话目录取数（getRecentSessions）再挂 header，pty 实测这段取数占 183ms（宏任务 1227ms 触发 → header 1410ms 上屏），期间屏幕中央空白。本补丁改为先用空数据挂 header 立即上屏，取数完成后换用完整数据的新 header 触发重绘。注意：已验证「在 session_start 同步阶段挂 header」无效（pi 会覆盖，探针 A 从未上屏），故本补丁仍在原 setTimeout 宏任务内执行。0.17.2 重锚：上游在 loadedCounts 处引入 pi.getCommands() 参数（#218），锚点已随之更新，逻辑未改。回退分支：await 后 canShowWelcome 失败时调 dismissWelcome(ctx) 清掉空壳，不留残留。",
           "from": "        if (!canShowWelcome(ctx, request, generation)) return;\n        const recentSessions = await getRecentSessions(3, request.signal);\n        if (!canShowWelcome(ctx, request, generation)) return;\n        const modelName = ctx.model?.name || ctx.model?.id || \"No model\";\n        const providerName = ctx.model?.provider || \"Unknown\";\n        const loadedCounts = discoverLoadedCounts(pi.getCommands());\n        const initialContextTokens = estimateInitialContextTokens(ctx);\n\n        const header = new WelcomeHeader(modelName, providerName, recentSessions, loadedCounts, initialContextTokens);\n        welcomeHeaderActive = true;\n        ctx.ui.setHeader(() => header);\n",
           "to": "        if (!canShowWelcome(ctx, request, generation)) return;\n        const modelName = ctx.model?.name || ctx.model?.id || \"No model\";\n        const providerName = ctx.model?.provider || \"Unknown\";\n\n        // pi-zh 行为补丁：先用空数据挂 header 让欢迎页立即上屏，取数完成后再填充\n        const shellHeader = new WelcomeHeader(modelName, providerName);\n        welcomeHeaderActive = true;\n        ctx.ui.setHeader(() => shellHeader);\n\n        const recentSessions = await getRecentSessions(3, request.signal);\n        if (!canShowWelcome(ctx, request, generation)) {\n          dismissWelcome(ctx);\n          return;\n        }\n        const loadedCounts = discoverLoadedCounts(pi.getCommands());\n        const initialContextTokens = estimateInitialContextTokens(ctx);\n\n        // pi-zh 行为补丁：换用完整数据的 header 触发重绘\n        const header = new WelcomeHeader(modelName, providerName, recentSessions, loadedCounts, initialContextTokens);\n        ctx.ui.setHeader(() => header);\n"
+        },
+        {
+          "id": "welcome-prompt-breakdown-import",
+          "authorized_on": "2026-10-11",
+          "reason": "欢迎页「初始提示词 tokens」原本只统计 system prompt 文本（≈4.2k），把工具 JSON schema 完全漏掉；用户 2026-10-11 观察到该数字与实际首请求（provider usage ≈7.07k）差一个量级，拍板要求分段明细。本补丁解析 Pi 渲染 system prompt 时包裹的分段标签（见 pi-ai/utils/text.js 的 getSystemMessageText：非 preamble 段落均为 <name>\\n…\\n</name>，用 \\n\\n 拼接），并用 pi.getAllTools()/getActiveTools() 计入工具声明，二者除以 4 得到与 Pi estimateTokens 同口径的估算值。回退分支：解析不到分段或拿不到工具列表时 estimatePromptBreakdown() 返回 null，欢迎页退回原来的单行总量显示，行为与上游一致；整体还原走 .zh-backup（--restore）。 接线①：从 context-usage.ts 导入新估值函数（保留原 estimateInitialContextTokens 作为回退）。",
+          "from": "import { CoreContextUsageCache, estimateInitialContextTokens, estimateUnknownContextUsage, resolveDisplayContextUsage, type CoreContextUsage } from \"./context-usage.ts\";",
+          "to": "import { CoreContextUsageCache, estimateInitialContextTokens, estimatePromptBreakdown, estimateUnknownContextUsage, resolveDisplayContextUsage, type CoreContextUsage } from \"./context-usage.ts\";"
+        },
+        {
+          "id": "welcome-prompt-breakdown-compute",
+          "authorized_on": "2026-10-11",
+          "reason": "欢迎页「初始提示词 tokens」原本只统计 system prompt 文本（≈4.2k），把工具 JSON schema 完全漏掉；用户 2026-10-11 观察到该数字与实际首请求（provider usage ≈7.07k）差一个量级，拍板要求分段明细。本补丁解析 Pi 渲染 system prompt 时包裹的分段标签（见 pi-ai/utils/text.js 的 getSystemMessageText：非 preamble 段落均为 <name>\\n…\\n</name>，用 \\n\\n 拼接），并用 pi.getAllTools()/getActiveTools() 计入工具声明，二者除以 4 得到与 Pi estimateTokens 同口径的估算值。回退分支：解析不到分段或拿不到工具列表时 estimatePromptBreakdown() 返回 null，欢迎页退回原来的单行总量显示，行为与上游一致；整体还原走 .zh-backup（--restore）。 接线②：欢迎页（header 与 overlay 两条路径）先算分段，总量回退到原实现。此条目命中 2 处。",
+          "from": "        const initialContextTokens = estimateInitialContextTokens(ctx);\n",
+          "to": "        const promptBreakdown = estimatePromptBreakdown(ctx, pi);\n        const initialContextTokens = promptBreakdown?.total ?? estimateInitialContextTokens(ctx);\n"
+        },
+        {
+          "id": "welcome-prompt-breakdown-header",
+          "authorized_on": "2026-10-11",
+          "reason": "欢迎页「初始提示词 tokens」原本只统计 system prompt 文本（≈4.2k），把工具 JSON schema 完全漏掉；用户 2026-10-11 观察到该数字与实际首请求（provider usage ≈7.07k）差一个量级，拍板要求分段明细。本补丁解析 Pi 渲染 system prompt 时包裹的分段标签（见 pi-ai/utils/text.js 的 getSystemMessageText：非 preamble 段落均为 <name>\\n…\\n</name>，用 \\n\\n 拼接），并用 pi.getAllTools()/getActiveTools() 计入工具声明，二者除以 4 得到与 Pi estimateTokens 同口径的估算值。回退分支：解析不到分段或拿不到工具列表时 estimatePromptBreakdown() 返回 null，欢迎页退回原来的单行总量显示，行为与上游一致；整体还原走 .zh-backup（--restore）。 接线③：header 路径把分段传给组件。",
+          "from": "        const header = new WelcomeHeader(modelName, providerName, recentSessions, loadedCounts, initialContextTokens);\n",
+          "to": "        const header = new WelcomeHeader(modelName, providerName, recentSessions, loadedCounts, initialContextTokens, promptBreakdown);\n"
+        },
+        {
+          "id": "welcome-prompt-breakdown-overlay",
+          "authorized_on": "2026-10-11",
+          "reason": "欢迎页「初始提示词 tokens」原本只统计 system prompt 文本（≈4.2k），把工具 JSON schema 完全漏掉；用户 2026-10-11 观察到该数字与实际首请求（provider usage ≈7.07k）差一个量级，拍板要求分段明细。本补丁解析 Pi 渲染 system prompt 时包裹的分段标签（见 pi-ai/utils/text.js 的 getSystemMessageText：非 preamble 段落均为 <name>\\n…\\n</name>，用 \\n\\n 拼接），并用 pi.getAllTools()/getActiveTools() 计入工具声明，二者除以 4 得到与 Pi estimateTokens 同口径的估算值。回退分支：解析不到分段或拿不到工具列表时 estimatePromptBreakdown() 返回 null，欢迎页退回原来的单行总量显示，行为与上游一致；整体还原走 .zh-backup（--restore）。 接线④：overlay 路径（quietStartup: false）同样传入分段。",
+          "from": "              loadedCounts,\n              initialContextTokens,\n            );\n",
+          "to": "              loadedCounts,\n              initialContextTokens,\n              promptBreakdown,\n            );\n"
+        }
+      ]
+    },
+    {
+      "package": "pi-powerline-footer",
+      "file": "context-usage.ts",
+      "source_version": "0.20.0",
+      "replacements": [],
+      "verify_expect": [
+        "estimatePromptBreakdown",
+        "splitSystemPromptSections",
+        "getAllTools"
+      ],
+      "note": "欢迎页初始提示词分段估值：解析 system prompt 的分段标签 + 汇总工具声明，与 estimateInitialContextTokens 同口径（字符数 / 4）。本 target 无汉化文案，仅有行为补丁。",
+      "code_patches": [
+        {
+          "id": "prompt-breakdown-estimator",
+          "authorized_on": "2026-10-11",
+          "reason": "欢迎页「初始提示词 tokens」原本只统计 system prompt 文本（≈4.2k），把工具 JSON schema 完全漏掉；用户 2026-10-11 观察到该数字与实际首请求（provider usage ≈7.07k）差一个量级，拍板要求分段明细。本补丁解析 Pi 渲染 system prompt 时包裹的分段标签（见 pi-ai/utils/text.js 的 getSystemMessageText：非 preamble 段落均为 <name>\\n…\\n</name>，用 \\n\\n 拼接），并用 pi.getAllTools()/getActiveTools() 计入工具声明，二者除以 4 得到与 Pi estimateTokens 同口径的估算值。回退分支：解析不到分段或拿不到工具列表时 estimatePromptBreakdown() 返回 null，欢迎页退回原来的单行总量显示，行为与上游一致；整体还原走 .zh-backup（--restore）。",
+          "from": "export function resolveDisplayContextUsage({\n",
+          "to": "export interface PromptBreakdownSection {\n  name: string;\n  tokens: number;\n}\n\n/** Initial prompt estimate split into system-prompt sections and tool declarations. */\nexport interface PromptBreakdown {\n  /** Whole system prompt, tagged sections plus any untagged remainder. */\n  system: number;\n  /** Tool declarations Pi sends next to the system prompt. */\n  tools: number;\n  toolCount: number;\n  sections: PromptBreakdownSection[];\n  /** system + tools: the number the welcome panel headlines. */\n  total: number;\n}\n\nfunction estimateCharsToTokens(chars: number): number {\n  return Math.ceil(chars / 4);\n}\n\n/**\n * Split a rendered system prompt back into the tagged sections Pi built it from\n * (`<rules>…</rules>`, `<skills>…</skills>`, …). Prompts without tags come back as one section.\n */\nexport function splitSystemPromptSections(prompt: string): PromptBreakdownSection[] {\n  const sections: PromptBreakdownSection[] = [];\n  const pattern = /<([a-z][a-z0-9_]*)>\\n([\\s\\S]*?)\\n<\\/\\1>/g;\n  let match = pattern.exec(prompt);\n  while (match !== null) {\n    sections.push({ name: match[1], tokens: estimateCharsToTokens(match[0].length) });\n    match = pattern.exec(prompt);\n  }\n  if (sections.length === 0 && prompt.trim().length > 0) {\n    sections.push({ name: \"system\", tokens: estimateCharsToTokens(prompt.length) });\n  }\n  return sections;\n}\n\nfunction readActiveToolNames(extensionApi: Record<string, unknown>): Set<string> | null {\n  const getActiveTools = extensionApi.getActiveTools;\n  if (typeof getActiveTools !== \"function\") return null;\n  try {\n    const active = getActiveTools.call(extensionApi);\n    if (!Array.isArray(active)) return null;\n    return new Set(active.filter((name): name is string => typeof name === \"string\"));\n  } catch {\n    return null;\n  }\n}\n\nfunction collectActiveToolDeclarations(extensionApi: unknown): Array<Record<string, unknown>> {\n  if (!isRecord(extensionApi)) return [];\n  const getAllTools = extensionApi.getAllTools;\n  if (typeof getAllTools !== \"function\") return [];\n  let tools: unknown;\n  try {\n    tools = getAllTools.call(extensionApi);\n  } catch {\n    return [];\n  }\n  if (!Array.isArray(tools)) return [];\n  const activeNames = readActiveToolNames(extensionApi);\n  return tools\n    .filter((tool): tool is Record<string, unknown> => isRecord(tool))\n    .filter((tool) => activeNames === null || (typeof tool.name === \"string\" && activeNames.has(tool.name)));\n}\n\n/**\n * Estimate the initial prompt the way the welcome panel reports it: every system-prompt section\n * plus the tool declarations. Tool schemas travel as their own request field, so counting only the\n * prompt text understates the first request by the size of the whole tool set.\n */\nexport function estimatePromptBreakdown(ctx: unknown, extensionApi?: unknown): PromptBreakdown | null {\n  if (!isRecord(ctx) || typeof ctx.getSystemPrompt !== \"function\") return null;\n\n  let prompt: unknown;\n  try {\n    prompt = ctx.getSystemPrompt();\n  } catch {\n    return null;\n  }\n  if (typeof prompt !== \"string\" || prompt.trim().length === 0) return null;\n\n  const declarations = collectActiveToolDeclarations(extensionApi).map((tool) => ({\n    name: typeof tool.name === \"string\" ? tool.name : \"tool\",\n    description: typeof tool.description === \"string\" ? tool.description : \"\",\n    parameters: isRecord(tool.parameters) ? tool.parameters : {},\n  }));\n\n  const system = estimateCharsToTokens(prompt.length);\n  const tools = declarations.length > 0 ? estimateCharsToTokens(JSON.stringify(declarations).length) : 0;\n\n  return {\n    system,\n    tools,\n    toolCount: declarations.length,\n    sections: splitSystemPromptSections(prompt),\n    total: system + tools,\n  };\n}\n\nexport function resolveDisplayContextUsage({\n"
         }
       ]
     }

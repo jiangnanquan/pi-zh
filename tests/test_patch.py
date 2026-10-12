@@ -32,7 +32,8 @@ class TestPiZhContract(unittest.TestCase):
 var BUILTIN_SLASH_COMMANDS = [
     { name: "settings", description: "Open settings menu" },
     { name: "model", description: "Select model (opens selector UI)", argumentHint: "<provider/model>" },
-    { name: "compact", description: "Manually compact the session context" }
+    { name: "compact", description: "Manually compact the session context" },
+    { name: "quit", description: `Quit ${APP_NAME}` }
 ];
 """
         patched, count = patch_engine.patch_slash_commands(sample_code, commands)
@@ -41,10 +42,12 @@ var BUILTIN_SLASH_COMMANDS = [
         self.assertIn('name: "settings"', patched)
         self.assertIn('name: "model"', patched)
         self.assertIn('name: "compact"', patched)
+        self.assertIn('name: "quit"', patched)
         # 验证 description 成功汉化
         self.assertIn("打开设置菜单", patched)
         self.assertIn("选择模型（打开选择器界面）", patched)
         self.assertIn("手动压缩会话上下文", patched)
+        self.assertIn("退出 Pi", patched)
         self.assertIn("<服务商/模型>", patched)
 
     def test_keybindings_contract(self):

@@ -24,13 +24,13 @@ CLI/TUI 展示文本汉化为简体中文，并让第三方插件在 `/` 补全�
 | 5 | 版本严格跟随 | `pi --version` 显示上游官方版本号，不自造版本 |
 | 6 | 插件简介零侵入 | 插件斜杠命令简介走「运行时覆盖 + `i18n/plugins.json` 字典映射」，不改 `node_modules` 任何文件 |
 | 7 | 插件渲染文案最小补丁 | 无注册接口可拦截的渲染文案（欢迎页等）走「精确字面量补丁 + `.zh-backup` + jiti 体检 + 一键还原」，只动字符串与模板片段 |
-| 8 | 行为补丁授权通道 | C 线原则上只改文案；确需改插件行为（当前 1 条：欢迎页空壳先行；上游已原生吸收的补丁及时退役）时必须走 `code_patches`：带 `id`/`reason`/`authorized_on`、保留原实现作回退分支、共用预检与还原；每条都要有 pty 探针回归验证 |
+| 8 | 行为补丁授权通道 | C 线原则上只改文案；确需改插件行为（当前 13 条，集中在欢迎页：空壳先行 1 + 提示词分段统计 11 + 渲染修复 1；上游已原生吸收的补丁及时退役）时必须走 `code_patches`：带 `id`/`reason`/`authorized_on`、保留原实现作回退分支、共用预检与还原；每条都要有探针回归验证（pty 抓屏或 jiti 探针） |
 | 9 | 懒人包只分发「协同必需」 | 判据：**非默认值 + 非冲突解决 = 不带**。配置按**白名单**提取，pi 新增字段自动落在包外；凭据、会话数据、个人 skill / Agent / 注入词永不进包 |
 | 10 | 导出单向 | SSOT 是维护者本机 `~/.pi/agent`，`bundle/` 是派生物；**永不从仓库反向覆盖本机**。导出过程机器可核对、结果可复现 |
 | 11 | 安装预检先于写盘 | 冲突默认拒绝（退出码 2）并列出差异，需显式 `--force-*`（覆盖前自动备份）；只改白名单字段，幂等、可精确回滚、保护用户手工改动 |
 | 12 | 插件功能补丁（维护线 F） | 仅当插件有行为缺陷且无扩展点可用时才打最小功能补丁：用户逐条授权 + `id` / `reason` / `authorized_on` + 「新增函数 + 最小调用点替换」形态 + **无触发条件时恒等回退** + 复用 C 线引擎（`--dict i18n/plugin-logic.json`）；只作用于被授权的那一个插件文件 |
 
-当前适配基准：Pi `1.0.4`（以 `scripts/patch_engine.py` 的 `SUPPORTED_VERSIONS` 为唯一权威）。
+当前适配基准：Pi `1.1.0`（以 `scripts/patch_engine.py` 的 `SUPPORTED_VERSIONS` 为唯一权威）。
 打补丁的**目标文件 27 个**，选择逻辑集中在 `patch_engine.collect_target_files()`，与预检脚本共用同一份清单（读 `.zh-backup` 干净基底，保证打完补丁后选取结果不变）：
 
 - 核心 bundle chunk：按内容标记（`BUILTIN_SLASH_COMMANDS` / `app.interrupt`）选取；
@@ -205,7 +205,7 @@ bash scripts/install_plugin_i18n.sh --uninstall  # 卸载，插件简介立即�
 
 ### C. 插件 UI 汉化：渲染文案补丁（欢迎页等）
 
-有些插件文案在**渲染期硬编码**（如 `pi-powerline-footer` 的欢迎页 `welcome.ts`），没有任何注册接口可拦截，
+有些插件文案在**渲染期硬编码**（如 `pi-powerline-footer` 的欢迎页 `welcome.ts`，以及取数侧 `index.ts`、估值侧 `context-usage.ts`），没有任何注册接口可拦截，
 运行时覆盖做不到，只能对插件源文件打精确字面量补丁。汉化条目全部维护在 `i18n/plugin-ui.json`。
 
 ```bash
@@ -238,11 +238,19 @@ bash scripts/apply_plugin_ui.sh --check      # 未命中条目就是上游改动
 **C2b. 行为补丁（`code_patches`，例外通道）**
 
 C 线原则上只改文案。确实需要改动插件渲染行为时，改动进 `i18n/plugin-ui.json` 的 `code_patches`，
-与文案共用同一个引擎、同一份备份、同一个 `--restore`。当前共 1 条，由用户逐条授权：
+与文案共用同一个引擎、同一份备份、同一个 `--restore`。当前共 13 条，由用户逐条授权：
 
 | `id` | 授权日 | 改了什么 | 回归探针 |
 | :--- | :--- | :--- | :--- |
 | `welcome-header-eager-shell` | 2026-09-13 | 启动欢迎页先用空数据挂 header 立即上屏，取数完成后再换 header 重绘 | 目视启动过程（无独立探针） |
+| `prompt-breakdown-estimator` | 2026-10-11 | `context-usage.ts`：新增 `estimatePromptBreakdown()` / `splitSystemPromptSections()`，解析 system prompt 分段标签 + 汇总工具声明（口径同 pi `estimateTokens`：字符数 / 4） | `probe_welcome_breakdown.mjs` |
+| `welcome-prompt-breakdown-*`（6 条） | 2026-10-11 | `welcome.ts`：新增两个类型、`WelcomeData.promptBreakdown` 字段、两个组件构造函数（参数 + 赋值，各命中 2 处）、分段区块渲染（`buildPromptBreakdownLines` 等辅助函数）、替换右栏单行逻辑并保留单行回退 | 同上 |
+| `welcome-prompt-breakdown-*`（4 条） | 2026-10-11 | `index.ts`：导入新估值函数、header 与 overlay 两条路径取数、两处组件构造传参 | 同上 + pty 抓屏 |
+| `welcome-fit-to-width-pad` | 2026-10-11 | `welcome.ts`：溢出分支截断后补齐空格，修复「中文 + 窄终端」右边框错位（tuiTruncateToWidth 为避开全角字符会少一列） | 同一探针的 44 / 50 列行宽断言 |
+
+**次序开关 `code_patches_first`（2026-10-11 新增引擎能力）**：引擎默认「文案 → 行为补丁」；
+若某 target 的行为补丁会**插入新的界面文案**（提示词分段区块即属此类），必须在该 target 上声明
+`"code_patches_first": true`，让同一份 `replacements` 覆盖插入文本；未声明的 target 次序与命中结果不变。
 
 **已退役的补丁**（上游已原生吸收 —— 退役 = 从 `code_patches` 删除该段，探针转为「上游行为复核」用途）：
 
@@ -271,7 +279,13 @@ C 线原则上只改文案。确实需要改动插件渲染行为时，改动进
 ```bash
 python3 scripts/probe_editor_border.py    # 边框色：在 pty 中真启一次 pi，统计紫/灰边框行并给出判定
 python3 scripts/probe_dock_rows.py        # dock 行数：解码最终帧，断言状态行即屏幕最后一行、无重复、无回显行
+node scripts/probe_welcome_breakdown.mjs  # 提示词分段统计：真实会话口径校验 + 44/50/76/96/110 列渲染断言
 ```
+
+`probe_welcome_breakdown.mjs` 不启 pi：它直接读 `~/.pi/agent/sessions/*.jsonl` 里最近一条带 `sections` / `toolsAdded`
+的 system 消息，复刻 pi-ai 的 `\n\n` 拼接口径还原当时的系统提示词与工具声明，因此能同时守住
+**口径**（估值 = 字符数 / 4，与 Pi 记账偏差 < 10%）与**渲染**（窄终端行宽自洽、分段区块出现、
+无分段数据时回退单行）。`--session <file>` 可指定会话，默认自动选最新一条。
 
 实测基线（powerline 0.17.2 / thinking=max；两条探针现用于复核上游原生行为与 F 线回归）：
 
