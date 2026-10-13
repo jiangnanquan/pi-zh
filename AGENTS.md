@@ -59,3 +59,4 @@
    - `python3 scripts/probe_dock_rows.py` 判定「屏幕最后一行即主状态行、无重复渲染、无回显行」（同理：未打补丁即应通过；上游回归时才需重新评估 dock 类补丁）。
 6. 代码与配置中无敏感凭据、个人路径或测试脏文件残留。
 7. 功能补丁（维护线 F）可回归验证：`python3 scripts/patch_plugin_ui.py --dict i18n/plugin-logic.json --check` 全部命中；`--apply` 后 jiti 体检通过（含 `verify_expect` 源码标记），且触发 / 不触发两条路径实测符合预期；`--restore` 能还原官方原版并清理备份。
+8. 交付闭环：通过全部单测、冒烟与行为探针后，更新 `00_状态.md` 与文档，规范执行本地 Git 原子提交；主动询问用户是否推送远端（`git push`），或在用户已授权时直接推送闭环。
