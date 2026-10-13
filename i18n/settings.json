@@ -109,7 +109,7 @@
   },
   "show-hardware-cursor": {
     "label": "显示硬件光标",
-    "description": "显示终端原生光标并为中文输入法（IME）保持精确定位"
+    "description": "使用终端原生光标替代 Pi 自绘制的光标"
   },
   "editor-padding": {
     "label": "输入框水平边距",
