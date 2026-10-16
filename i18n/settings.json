@@ -15,6 +15,10 @@
     "label": "传输协议",
     "description": "支持多协议的模型服务商的首选传输方式（SSE / WebSocket 等）"
   },
+  "share-destination": {
+    "label": "会话分享上传目标",
+    "description": "使用 /share 命令上传会话的目标位置（auto 会在已登录时优先使用 Radius，否则使用 GitHub Gist）"
+  },
   "http-idle-timeout": {
     "label": "HTTP 空闲超时",
     "description": "等待 HTTP 响应头或数据块的最大空闲间隔。对于暂停超过 5 分钟的本地模型可禁用。"
