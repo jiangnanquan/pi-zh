@@ -456,6 +456,8 @@ def main():
     parser.add_argument("--node-modules-dir", type=str, default=None,
                         help="插件 node_modules 目录（默认 <agent-dir>/npm/node_modules）")
     parser.add_argument("--allow-missing", action="store_true", help="应急：允许部分条目未命中仍写盘")
+    parser.add_argument("--auto-bump", action="store_true",
+                        help="当补丁完全命中时，自动上抬字典中的 source_version 与已装插件版本一致")
     parser.add_argument("--skip-verify", action="store_true",
                         help="应急：跳过 jiti 加载体检（仅限离线单测，正常流程禁用）")
     parser.add_argument("--dict", type=str, default=str(DICT_PATH), help="翻译字典路径")
@@ -501,6 +503,27 @@ def main():
             sys.exit(1)
         else:
             log(f"补丁应用成功：{processed} 个文件，累计替换 {total_changes} 处词条。", "SUCCESS")
+            if getattr(args, "auto_bump", False):
+                dict_changed = False
+                for target in targets:
+                    try:
+                        _, meta = locate_plugin_package(
+                            target["package"],
+                            agent_dir=args.agent_dir,
+                            node_modules_dir=args.node_modules_dir,
+                        )
+                        current_ver = meta.get("version")
+                        if current_ver and current_ver != target.get("source_version"):
+                            log(f"[{target['package']}/{target['file']}] auto-bump: {target.get('source_version')} -> {current_ver}", "INFO")
+                            target["source_version"] = current_ver
+                            dict_changed = True
+                    except Exception:
+                        pass
+                if dict_changed:
+                    with open(args.dict, "w", encoding="utf-8") as f:
+                        json.dump(_data, f, ensure_ascii=False, indent=2)
+                        f.write("\n")
+                    log(f"已自动更新字典文件 {args.dict} 的 source_version", "SUCCESS")
         return
 
     parser.print_help()
