@@ -23,7 +23,7 @@
     "description": "从 JSONL 文件导入并恢复会话"
   },
   "share": {
-    "description": "将当前会话分享为 GitHub 秘密 Gist"
+    "description": "通过 Radius 制品或 GitHub Gist 分享当前会话"
   },
   "bug": {
     "description": "向 Pi 开发者报告问题",
