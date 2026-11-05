@@ -76,6 +76,21 @@ function locatePiPackage(explicit) {
 		if (isPiPackageRoot(resolved)) return resolved;
 		fail(`--pi-pkg 未指向 ${PI_PACKAGE_NAME} 包目录：${resolved}`);
 	}
+	const managedRoots = [];
+	if (process.env.PI_MANAGED_INSTALL_ROOT) {
+		managedRoots.push(path.resolve(process.env.PI_MANAGED_INSTALL_ROOT));
+	}
+	managedRoots.push(path.join(os.homedir(), ".pi", "agent", "install"));
+	for (const mRoot of managedRoots) {
+		const verFile = path.join(mRoot, "current-version");
+		try {
+			if (fs.existsSync(verFile)) {
+				const ver = fs.readFileSync(verFile, "utf8").trim();
+				const candidate = path.join(mRoot, "releases", ver, "node_modules", ...PI_PACKAGE_NAME.split("/"));
+				if (isPiPackageRoot(candidate)) return candidate;
+			}
+		} catch {}
+	}
 	const resolvedBin = execFileSync("bash", ["-lc", `command -v ${process.env.PI_BIN || "pi"}`], { encoding: "utf8" }).trim();
 	if (resolvedBin) {
 		let real = resolvedBin;

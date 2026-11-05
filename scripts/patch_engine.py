@@ -16,7 +16,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-SUPPORTED_VERSIONS = ["0.85.1", "0.86.1", "0.87.0", "0.87.1", "0.99.0", "0.99.1", "0.99.2", "1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4", "1.1.0", "1.2.0", "1.3.0", "1.4.0"]
+SUPPORTED_VERSIONS = ["0.85.1", "0.86.1", "0.87.0", "0.87.1", "0.99.0", "0.99.1", "0.99.2", "1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4", "1.1.0", "1.2.0", "1.3.0", "1.4.0", "1.5.0"]
 
 # 次级 chunk 的选取规则：chunk 里至少命中 CHUNK_PHRASE_MIN_COUNT 条长度≥ CHUNK_PHRASE_MIN_LEN
 # 的字典键，才纳入目标清单（主 chunk 按内容标记选取，不受此限）。
@@ -40,22 +40,51 @@ def log(msg, level="INFO"):
 
 
 def locate_pi_package(custom_dir=None):
-    """定位全局安装的 @earendil-works/pi-coding-agent 目录"""
+    """定位全局安装或托管安装的 @earendil-works/pi-coding-agent 目录"""
     if custom_dir:
         p = Path(custom_dir).resolve()
         if (p / "package.json").exists():
             return p
         raise FileNotFoundError(f"指定的目录不存在有效的 package.json: {custom_dir}")
 
-    # 优先通过 which pi 解析符号链接真实路径
+    # 优先检查 PI_MANAGED_INSTALL_ROOT 环境变量或 ~/.pi/agent/install/current-version
+    managed_roots = []
+    if "PI_MANAGED_INSTALL_ROOT" in os.environ:
+        managed_roots.append(Path(os.environ["PI_MANAGED_INSTALL_ROOT"]).resolve())
+    managed_roots.append(Path.home() / ".pi" / "agent" / "install")
+
+    for m_root in managed_roots:
+        ver_file = m_root / "current-version"
+        if ver_file.exists():
+            try:
+                ver = ver_file.read_text(encoding="utf-8").strip()
+                pkg_candidate = m_root / "releases" / ver / "node_modules" / "@earendil-works" / "pi-coding-agent"
+                if (pkg_candidate / "package.json").exists():
+                    return pkg_candidate.resolve()
+            except Exception:
+                pass
+
+    # 次选：通过 which pi 解析符号链接真实路径
     pi_bin = shutil.which("pi")
     if pi_bin:
-        real_bin = os.path.realpath(pi_bin)
-        # /.../lib/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js
-        # 向上跳 4 级到达包根目录
-        pkg_root = Path(real_bin).resolve().parents[3]
-        if (pkg_root / "package.json").exists():
-            return pkg_root
+        real_bin = Path(os.path.realpath(pi_bin)).resolve()
+        for parent in list(real_bin.parents)[:6]:
+            if (parent / "package.json").exists():
+                try:
+                    with open(parent / "package.json", "r", encoding="utf-8") as f:
+                        if json.load(f).get("name") == "@earendil-works/pi-coding-agent":
+                            return parent
+                except Exception:
+                    pass
+            ver_file = parent / "install" / "current-version"
+            if ver_file.exists():
+                try:
+                    ver = ver_file.read_text(encoding="utf-8").strip()
+                    pkg_candidate = parent / "install" / "releases" / ver / "node_modules" / "@earendil-works" / "pi-coding-agent"
+                    if (pkg_candidate / "package.json").exists():
+                        return pkg_candidate.resolve()
+                except Exception:
+                    pass
 
     # 次选：通过 npm root -g 查找
     try:
