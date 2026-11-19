@@ -15,7 +15,7 @@
     "Update pi, extensions, or model catalogs": "更新 pi 本体、已安装扩展或大模型目录",
     "List installed extensions from settings": "列出配置中已安装的所有扩展",
     "Open TUI to enable/disable package resources (Tab switches scope)": "打开 TUI 界面以启用/禁用包资源 (按 Tab 键切换范围)",
-    "Print credentials or check provider readiness": "打印服务商凭据或检查就绪状态",
+    "Log in or out, print credentials, or check provider readiness": "登录或退出账号、打印凭据或检查服务商就绪状态",
     "Show help for install/remove/uninstall/update/list/config/auth/mcp": "显示 install/remove/uninstall/update/list/config/auth/mcp 等子命令帮助",
     "Manage MCP servers": "管理 MCP 服务器"
   },
@@ -84,9 +84,10 @@
     "`Unknown option ${options.invalidOption} for \"${options.command}\".`": "`未知选项 ${options.invalidOption}（\"${options.command}\" 命令）`",
     "`Unknown option --${option} for \"${getAuthCommandName(command.kind)}\".`": "`未知选项 --${option}（\"${getAuthCommandName(command.kind)}\" 命令）`",
     "--api-key requires a model to be specified via --model, --provider/--model, or --models": "--api-key 需要通过 --model、--provider/--model 或 --models 指定模型",
-    "`Invalid models.json schema:\n${errors}\n\nFile: ${path10}`": "`models.json 结构无效:\n${errors}\n\n文件: ${path10}`",
+    "`Invalid models.json schema:\n${errors}\n\nFile: ${path}`": "`models.json 结构无效:\n${errors}\n\n文件: ${path}`",
     "Auth checks require --provider <provider> or --model <model>": "认证检查需要通过 --provider <provider> 或 --model <model> 指定",
     "Auth commands only accept --provider and --model": "认证类子命令只接受 --provider 与 --model",
-    "Credential printing requires --provider <provider> or --model <model>": "打印凭据需要通过 --provider <provider> 或 --model <model> 指定"
+    "Credential printing requires --provider <provider> or --model <model>": "打印凭据需要通过 --provider <provider> 或 --model <model> 指定",
+    "`Unknown auth command \"${args[1]??\"\"}\". Use \"${APP_NAME} auth login\", \"${APP_NAME} auth logout\", \"${APP_NAME} auth print-api-key\", \"${APP_NAME} auth print-bearer-token\", or \"${APP_NAME} auth check\".`": "`未知认证子命令 \"${args[1]??\"\"}\"。请使用 \"${APP_NAME} auth login\"、\"${APP_NAME} auth logout\"、\"${APP_NAME} auth print-api-key\"、\"${APP_NAME} auth print-bearer-token\" 或 \"${APP_NAME} auth check\"。`"
   }
 }
